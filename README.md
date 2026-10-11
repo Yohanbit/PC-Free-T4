@@ -105,24 +105,6 @@ RustDesk se mantiene como mecanismo de administración y conexión de respaldo.
 
 La compatibilidad con un escritorio remoto no garantiza una experiencia de juego fluida.
 
-## 🔄 Desarrollo y mantenimiento
-
-Después de modificar los archivos fuente de `scripts/`, ejecuta el flujo de mantenimiento previsto:
-
-```bash
-python tools/build-notebooks.py
-python tests/test_package.py
-```
-
-Antes de publicar cambios en `main`:
-
-- [ ] Regenerar los notebooks.
-- [ ] Ejecutar las pruebas disponibles.
-- [ ] Revisar el código y los cambios generados.
-- [ ] Eliminar credenciales y datos privados.
-- [ ] Actualizar `CHANGELOG.md` con mejoras verificables.
-
-El proyecto no sincroniza automáticamente los archivos modificados dentro de una sesión. Los cambios deben incorporarse explícitamente al repositorio.
 
 ## 🛡️ Seguridad y condiciones
 
