@@ -5,6 +5,7 @@
 - Ajustado el arranque para conservar un bus privado del usuario de aplicaciones, independiente de la vida del lanzador inicial. Sin desactivar sandbox ni borrar cuentas, caché o juegos.
 - En la sesión activa se comprobó respuesta del bus y procesos Steam vivos después del ajuste. Login, estabilidad prolongada y Steam Link continúan sin confirmar; no presentar este cambio como solución definitiva.
 - Regenerado el cuaderno. La receta completa desde cero continúa pendiente.
+- Steam bloqueado requirió terminar únicamente sus procesos y abrir con `-cef-disable-gpu`: apareció de nuevo la pantalla de login. El parámetro afecta a la interfaz web de Steam, no a la GPU de Minecraft. Añadido al arranque; falta probar que completa el login y no vuelve a cerrarse.
 
 ## 2026-10-11 · primera receta pública
 - Documentada la configuración comprobada de XFCE/T4, Firefox, RustDesk, Battly y Steam.

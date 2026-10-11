@@ -14,6 +14,7 @@ Reconstruir una sesión Linux con GPU y acceso desde Android, conservando cambio
 - Steam oficial actualizado, dependencias de 32 bits corregidas y pantalla de inicio de sesión observada. No está confirmado el login ni Steam Link.
 
 ## Pendiente
+- Tras terminar solo los procesos bloqueados de Steam y abrir con `-cef-disable-gpu`, volvió a aparecer la pantalla de login. El acceso directo conserva ese parámetro para la interfaz; Minecraft sigue abierto y no se cambió su aceleración gráfica. Pedir prueba real de login desde RustDesk; aún no confirmar solución definitiva.
 - Steam se cerró tras intentos de login: registros muestran bloqueo interno y desconexión fatal de D-Bus. Se probó bus privado persistente y se observaron procesos vivos/respuesta del bus; el inicio de sesión y la estabilidad siguen pendientes. No usar contraseñas del chat, borrar perfiles ni cerrar Minecraft para probar.
 - RustDesk transmite mal el caminar sostenido y no permite girar la cámara en la partida. Causa exacta no establecida; no culpar a GPU ni a Minecraft sin medir.
 - Probar Steam Link con cuenta del usuario, sin compras, y comprobar controles/cámara. Falta /dev/uinput en el entorno original: no asumir soporte completo de entrada.

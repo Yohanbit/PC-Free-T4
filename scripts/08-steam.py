@@ -23,7 +23,7 @@ steam_session=steam_base/'start-session.sh'
 steam_session.write_text('#!/bin/sh\nset -eu\nbus_address="unix:path=$XDG_RUNTIME_DIR/steam-session-bus"\n'
     'if ! dbus-send --bus="$bus_address" --type=method_call --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.ListNames >/dev/null 2>&1; then\n'
     '  dbus-daemon --session --fork --address="$bus_address"\nfi\n'
-    'export DBUS_SESSION_BUS_ADDRESS="$bus_address"\nexec '+shlex.quote(str(steam_script))+' "$@"\n')
+    'export DBUS_SESSION_BUS_ADDRESS="$bus_address"\nexec '+shlex.quote(str(steam_script))+' -cef-disable-gpu "$@"\n')
 steam_session.chmod(0o755)
 steam_wrapper.write_text('#!/bin/sh\nexec runuser -u pcfree-browser -- env '+' '.join(shlex.quote(k+'='+v) for k,v in kept.items())+' '+shlex.quote(str(steam_session))+' "$@"\n')
 steam_wrapper.chmod(0o755)
