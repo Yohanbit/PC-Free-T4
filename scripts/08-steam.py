@@ -16,7 +16,16 @@ steam_script=steam_root/'usr/lib/steam/bin_steam.sh'
 assert steam_script.exists()
 kept={k:browser_env[k] for k in ['DISPLAY','HOME','USER','LOGNAME','XDG_RUNTIME_DIR','LD_LIBRARY_PATH','__GLX_VENDOR_LIBRARY_NAME'] if k in browser_env}
 steam_wrapper=Path('/usr/local/bin/pcfree-steam')
-steam_wrapper.write_text('#!/bin/sh\nexec runuser -u pcfree-browser -- env '+' '.join(shlex.quote(k+'='+v) for k,v in kept.items())+' dbus-run-session -- '+shlex.quote(str(steam_script))+' "$@"\n')
+# Steam bootstrap may exit after handing off to a detached client. A bus tied
+# to that bootstrap via dbus-run-session can then die under steamwebhelper.
+# Keep an authenticated private session bus for the application user instead.
+steam_session=steam_base/'start-session.sh'
+steam_session.write_text('#!/bin/sh\nset -eu\nbus_address="unix:path=$XDG_RUNTIME_DIR/steam-session-bus"\n'
+    'if ! dbus-send --bus="$bus_address" --type=method_call --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.ListNames >/dev/null 2>&1; then\n'
+    '  dbus-daemon --session --fork --address="$bus_address"\nfi\n'
+    'export DBUS_SESSION_BUS_ADDRESS="$bus_address"\nexec '+shlex.quote(str(steam_script))+' "$@"\n')
+steam_session.chmod(0o755)
+steam_wrapper.write_text('#!/bin/sh\nexec runuser -u pcfree-browser -- env '+' '.join(shlex.quote(k+'='+v) for k,v in kept.items())+' '+shlex.quote(str(steam_session))+' "$@"\n')
 steam_wrapper.chmod(0o755)
 shortcut=Path(desktop_env['HOME'])/'Desktop/Steam.desktop'
 shortcut.write_text('[Desktop Entry]\nVersion=1.0\nType=Application\nName=Steam\nExec=/usr/local/bin/pcfree-steam\nIcon='+str(steam_root/'usr/share/icons/hicolor/256x256/apps/steam.png')+'\nTerminal=false\nCategories=Game;\n')
