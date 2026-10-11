@@ -19,7 +19,7 @@ Reconstruir una sesión Linux con GPU y acceso desde Android, conservando cambio
 - RustDesk transmite mal el caminar sostenido y no permite girar la cámara en la partida. Causa exacta no establecida; no culpar a GPU ni a Minecraft sin medir.
 - Probar Steam Link con cuenta del usuario, sin compras, y comprobar controles/cámara. Falta /dev/uinput en el entorno original: no asumir soporte completo de entrada.
 - Medir rendimiento, sonido y estabilidad. No derivar FPS de Minecraft de una demo OpenGL.
-- Reconstrucción integrada desde cero y flujo real de exportación/restauración de mundos/Drive pendientes de validación. No cerrar la sesión actual solo para probar el instalador.
+- Reconstrucción integrada desde cero y restauración jugable pendientes de validación. Se exportaron datos reales de Minecraft a Drive y se verificó su integridad descargándolos nuevamente; no publicar datos ni IDs personales. No cerrar la sesión actual solo para probar el instalador.
 
 ## Precauciones y persistencia
 - GPU gratuita y duración no garantizadas; Colab restringe el escritorio remoto. No usar anti-idle, evasión, túneles destinados a eludir límites ni recreación automática.
@@ -36,8 +36,13 @@ Leer archivos vigentes del repo antes de cambiar nada. Si la máquina sigue viva
 - **RustDesk es provisional**, para administración y respaldo de acceso. No dar por resueltos los controles de Minecraft con RustDesk.
 - **Steam Link sigue en pruebas.** El próximo paso es confirmar que Steam completa el login sin cerrarse, emparejar el Android y probar teclado sostenido y ratón relativo/cámara. Después comprobar sonido y estabilidad. No marcar Steam Link como operativo sin prueba real del usuario.
 - Mantener RustDesk y la GPU T4 gráfica mientras se prueba la alternativa; no cerrar Minecraft, reinstalar el entorno ni modificar PC-Free Windows como parte de este diagnóstico.
-- Todavía no existe un respaldo real verificado de la partida. Documentar qué ZIP se exportó y probar su restauración antes de afirmar que se puede volver exactamente al mundo guardado.
+- Existe un respaldo real privado en Drive, con integridad verificada tras descargarlo. Consultar el estado privado del propietario, no este repositorio público, para localizarlo. Falta restaurarlo y abrirlo en Minecraft antes de afirmar recuperación jugable. Seguir PERSONAL-DRIVE.md para separar cuentas y datos de cada persona.
 - Conservar en este repositorio los cambios futuros de configuración y su estado de pruebas, sin publicar credenciales ni datos personales. No implica sincronización automática del disco activo.
 
 ## Mantener el repositorio
 Actualizar scripts, regenerar cuadernos, ejecutar pruebas, revisar privacidad, actualizar CHANGELOG/estado y publicar un commit mínimo en main. No afirmar que una modificación publicada está aplicada al runtime activo hasta ejecutarla y observar su resultado.
+
+## Cierre y datos personales · actualización
+- A petición del propietario se finalizó el runtime temporal después del respaldo verificado. No reutilizar IDs o contraseñas antiguas de RustDesk.
+- Cada persona conecta su propio Drive y guarda sus datos en una carpeta privada PC-Free-T4. No crear un Drive compartido ni ejecutar archivos arbitrarios guardados allí. Ver PERSONAL-DRIVE.md.
+- Al retomar: revisar si existe sesión activa; en su ausencia reconstruir receta, recuperar último respaldo válido en una carpeta nueva y comprobar versiones. RustDesk temporal; Steam Link sigue pendiente. No se verificó recuperación completa desde cero.
