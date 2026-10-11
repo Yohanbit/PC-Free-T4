@@ -6,15 +6,7 @@ Receta y cuadernos reutilizables para reconstruir el entorno que probamos: **XFC
 
 [Abrir cuaderno separado de respaldos](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/Drive-Backups.ipynb)
 
-## Antes de empezar
-
-**Google Colab gratuito restringe el escritorio/control remoto.** Que una prueba funcione no significa que el proveedor autorice este uso. Puede terminar el entorno, retirar la GPU o limitar el acceso. Este repositorio documenta una prueba técnica, para estudio y adaptación a proveedores que permitan el uso previsto; no promete una PC gamer gratuita ni disponibilidad continua. [Condiciones oficiales](https://research.google.com/colaboratory/faq.html#disallowed-activities).
-
-- No incluye trucos anti-desconexión, evasión de restricciones, recreación automática de sesiones ni activación de pagos.
-- No necesita Tailscale ni ZeroTier para la conexión RustDesk probada.
-- No montar Drive en el escritorio: las aplicaciones tendrían acceso a ese montaje.
-- No se incluyen credenciales, IDs remotos vigentes, sesiones, partidas, ejecutables ni copias de aplicaciones de terceros.
-- Cada usuario inicia sesión con sus propias cuentas y necesita las licencias correspondientes de sus juegos. La presencia de Battly no concede una licencia de Minecraft.
+[Condiciones oficiales](https://research.google.com/colaboratory/faq.html#disallowed-activities).
 
 ## Requisitos y alcance
 
@@ -54,19 +46,10 @@ Descargar el ZIP desde Drive, indicar la carpeta `saves` de la instancia correct
 
 **La exportación/restauración y el flujo Drive son funciones nuevas; se probaron con archivos ficticios, no todavía con una partida real ni con tu Drive.**
 
-## Estado real
-
-- Comprobados en la sesión original: XFCE 1280×720, OpenGL NVIDIA T4, conexión visual y controles de escritorio RustDesk desde Android, Firefox, Battly después del arreglo, Minecraft abierto en un mundo y pantalla de inicio de sesión Steam.
-- **Problema pendiente:** teclado sostenido y giro de cámara de Minecraft por RustDesk. Que el escritorio acepte ratón/teclado no confirma controles aptos para jugar.
-- Steam Link: pendiente de inicio de sesión, emparejamiento y prueba. No prometer que resolverá los controles en este entorno.
-- La captura reciente del juego muestra **26.3**; no se confirmó que esa partida sea 1.21.11. El usuario elige la versión en el launcher.
-- La reconstrucción integrada desde cero todavía no se ha ejecutado. Se hicieron comprobaciones de sintaxis y pruebas locales del respaldo; **no presentarlas como una prueba completa en Colab**.
-
-Más contexto en [CONTINUAR.md](CONTINUAR.md).
 
 ## Retomar con una petición
 
-Puedes pedir al agente: **«Ejecuta mi repositorio PC-Free-T4»** o **«Arranca PC-Free-T4 y continúa donde lo dejamos»**. Debe leer primero este README, CONTINUAR.md y CHANGELOG.md en `main`, comprobar si la máquina anterior sigue viva y conservarla si existe. Si desapareció, la receta permite preparar otra sesión en un proveedor que autorice este uso y restaurar mundos desde un respaldo disponible. No es un arranque automático sin intervención: pueden hacer falta autorizaciones, CAPTCHA, login y emparejamiento del usuario.
+**«Ejecuta mi PC-Free-T4»** o **«Arranca PC-Free-T4 Debe leer primero este README, CONTINUAR.md y CHANGELOG.md en `main`, comprobar si la máquina anterior sigue viva y conservarla si existe. Si desapareció, la receta permite preparar otra sesión en un proveedor que autorice este uso y restaurar mundos desde un respaldo disponible. No es un arranque automático sin intervención: pueden hacer falta autorizaciones, CAPTCHA, login y emparejamiento del usuario.
 
 **RustDesk es temporal:** sirve para administrar el escritorio y como conexión de respaldo, no como solución validada para jugar Minecraft. **Seguimos probando Steam Link**; primero hay que verificar el login de Steam, después emparejar Android y comprobar caminar sostenido, giro de cámara, sonido y estabilidad. Conservar RustDesk durante estas pruebas; no reemplazarlo ni cerrar la partida antes de confirmar una alternativa funcional.
 
