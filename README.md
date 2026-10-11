@@ -64,6 +64,14 @@ Descargar el ZIP desde Drive, indicar la carpeta `saves` de la instancia correct
 
 Más contexto en [CONTINUAR.md](CONTINUAR.md).
 
+## Retomar con una petición
+
+Puedes pedir al agente: **«Ejecuta mi repositorio PC-Free-T4»** o **«Arranca PC-Free-T4 y continúa donde lo dejamos»**. Debe leer primero este README, CONTINUAR.md y CHANGELOG.md en `main`, comprobar si la máquina anterior sigue viva y conservarla si existe. Si desapareció, la receta permite preparar otra sesión en un proveedor que autorice este uso y restaurar mundos desde un respaldo disponible. No es un arranque automático sin intervención: pueden hacer falta autorizaciones, CAPTCHA, login y emparejamiento del usuario.
+
+**RustDesk es temporal:** sirve para administrar el escritorio y como conexión de respaldo, no como solución validada para jugar Minecraft. **Seguimos probando Steam Link**; primero hay que verificar el login de Steam, después emparejar Android y comprobar caminar sostenido, giro de cámara, sonido y estabilidad. Conservar RustDesk durante estas pruebas; no reemplazarlo ni cerrar la partida antes de confirmar una alternativa funcional.
+
+La receta y los ajustes realizados están guardados; las partidas y los archivos personales solo se recuperan si se exportaron y respaldaron. No hay todavía un respaldo real verificado de la partida de esta sesión.
+
 ## Actualizaciones
 
 Los cambios de configuración de nuestro trabajo se publicarán como commits en `main`, junto con `CHANGELOG.md` y el cuaderno regenerado. No hay un sincronizador que observe tu PC ni capture archivos automáticamente. Cambios manuales hechos por otra persona o dentro de la máquina deben revisarse e incorporarse explícitamente.

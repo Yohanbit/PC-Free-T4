@@ -31,5 +31,13 @@ Reconstruir una sesión Linux con GPU y acceso desde Android, conservando cambio
 ## Retomar
 Leer archivos vigentes del repo antes de cambiar nada. Si la máquina sigue viva, conectar a ella: no lanzar una nueva innecesariamente. Si ya desapareció, usar el cuaderno y recuperar los mundos desde el último respaldo disponible. El usuario deberá completar login/CAPTCHA/emparejamiento cuando el servicio lo pida.
 
+### Instrucción de continuación guardada
+- Petición de activación: **«Ejecuta mi repositorio PC-Free-T4»** o **«Arranca PC-Free-T4 y continúa donde lo dejamos»**. Consultar siempre `main`, no depender de un chat anterior.
+- **RustDesk es provisional**, para administración y respaldo de acceso. No dar por resueltos los controles de Minecraft con RustDesk.
+- **Steam Link sigue en pruebas.** El próximo paso es confirmar que Steam completa el login sin cerrarse, emparejar el Android y probar teclado sostenido y ratón relativo/cámara. Después comprobar sonido y estabilidad. No marcar Steam Link como operativo sin prueba real del usuario.
+- Mantener RustDesk y la GPU T4 gráfica mientras se prueba la alternativa; no cerrar Minecraft, reinstalar el entorno ni modificar PC-Free Windows como parte de este diagnóstico.
+- Todavía no existe un respaldo real verificado de la partida. Documentar qué ZIP se exportó y probar su restauración antes de afirmar que se puede volver exactamente al mundo guardado.
+- Conservar en este repositorio los cambios futuros de configuración y su estado de pruebas, sin publicar credenciales ni datos personales. No implica sincronización automática del disco activo.
+
 ## Mantener el repositorio
 Actualizar scripts, regenerar cuadernos, ejecutar pruebas, revisar privacidad, actualizar CHANGELOG/estado y publicar un commit mínimo en main. No afirmar que una modificación publicada está aplicada al runtime activo hasta ejecutarla y observar su resultado.
