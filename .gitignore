@@ -1,0 +1,26 @@
+# Runtime data must never be committed.
+.env
+*.env
+*.log
+*.png
+*.jpg
+*.jpeg
+*.deb
+*.AppImage
+*.tar
+*.tar.gz
+*.zip
+*.mcworld
+*.mca
+level.dat*
+.Xauthority
+.steam/
+.config/rustdesk/
+.minecraft/
+.battly/
+backups/
+runtime/
+__pycache__/
+*.pyc
+credentials*
+tokens*

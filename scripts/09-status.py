@@ -1,0 +1,7 @@
+print('Drive montado:',os.path.ismount('/content/drive'))
+print(subprocess.run(['nvidia-smi','--query-gpu=name,driver_version','--format=csv,noheader'],capture_output=True,text=True).stdout)
+print(subprocess.run(['glxinfo','-B'],env=desktop_env,capture_output=True,text=True).stdout)
+print('Espacio temporal libre (GiB):',round(shutil.disk_usage('/tmp').free/1024**3,1))
+subprocess.run(['scrot','--overwrite',str(base/'current.png')],env=desktop_env,check=True)
+display(PILImage.open(base/'current.png'))
+print('La captura puede contener contraseña temporal de RustDesk. No guardar salidas del cuaderno en GitHub.')
