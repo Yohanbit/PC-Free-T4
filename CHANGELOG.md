@@ -1,5 +1,20 @@
 # Cambios
 
+## 2026-10-12 · perfil gaming NVIDIA
+- Perfil predeterminado 720p/60 FPS objetivo, H.264 NVENC cuando está disponible, Turbo y CBR 5 Mbps. Selección GPU NVIDIA y preferencia de codificación CPU desactivada.
+- Firefox con perfil dedicado, WebRender/WebGL y EGL NVIDIA aislado. No modifica cuentas de otros perfiles ni desactiva sandbox.
+- Botón Jugar en cada nueva sesión: solicita captura con una acción del usuario; no fuerza permisos del navegador.
+- El objetivo de transmisión no equivale a FPS del juego. Rendimiento de aplicaciones y captura desde Android pendiente de medición.
+
+## 2026-10-12 · Sober incluido y controles web
+- Flatpak/Sober activados por defecto, descarga en segundo plano después de publicar el escritorio; opción para omitirla.
+- Comprobaciones x86-64, SSE4.1/SSE4.2, kernel y namespaces, extensión NVIDIA exacta de Flatpak y prueba no gráfica del sandbox.
+- Estado y errores de instalación separados; reintento sin reiniciar el escritorio y exclusión de instalaciones simultáneas de Sober.
+- Copia privada del cliente Selkies con cancelación acotada del comportamiento predeterminado de clic derecho, sin impedir su envío al escritorio.
+- Modo gaming y límites de Android/Keyboard Lock documentados. No se promete interceptar Atrás ni atajos consumidos por el sistema local.
+- Registro de OpenGL ES y Vulkan NVIDIA en el arranque. Pruebas offline ampliadas; Roblox y controles reales pendientes de validación.
+- Prueba real: CPU SSE4.1/SSE4.2 disponible; Sober y extensión NVIDIA descargados, pero ejecución bloqueada por montaje de `/proc` denegado en Bubblewrap. Nuevo preflight evita descargar runtimes en VMs con esa restricción.
+
 ## 2026-10-12 · escritorio HTML5 y arranque mínimo
 - Sustituido el flujo de acceso anterior por Selkies 2.0 y túnel HTTPS HTTP/2 autenticado.
 - Cuadernos autocontenidos con fuentes embebidas, credenciales nuevas por sesión y salidas limpias.

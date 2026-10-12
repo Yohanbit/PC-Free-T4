@@ -450,6 +450,24 @@ subprocess.run(['apt-get','install','-y','--no-install-recommends',sys.argv[1]],
     shortcut(session, 'Instalador', 'Instalador de paquetes Ubuntu', 'pcfree-run pcfree-install', 'system-software-install', True)
 
 
+def firefox_gpu_profile(session):
+    """Dedicated profile; preserve accounts and settings of other profiles."""
+    profile = BASE / 'firefox-profile'
+    profile.mkdir(mode=0o700, exist_ok=True)
+    preferences = '\n'.join([
+        'user_pref("gfx.webrender.all", true);',
+        'user_pref("layers.acceleration.force-enabled", true);',
+        'user_pref("webgl.disabled", false);',
+        'user_pref("webgl.force-enabled", true);',
+        'user_pref("browser.sessionstore.resume_from_crash", false);',
+    ]) + '\n'
+    (profile / 'user.js').write_text(preferences)
+    account = pwd.getpwnam(session['user'])
+    for item in (profile, profile / 'user.js'):
+        os.chown(item, account.pw_uid, account.pw_gid)
+    return profile
+
+
 def firefox_background(session):
     def worker():
         try:
@@ -461,8 +479,11 @@ def firefox_background(session):
                     bundle.extractall(destination, filter='data')
                 archive.unlink()
             command = '/usr/local/bin/pcfree-firefox'
+            profile = firefox_gpu_profile(session)
             Path(command).write_text('#!/bin/sh\nexec /usr/local/bin/pcfree-run '
-                                     + shlex.quote(str(destination / 'firefox/firefox')) + ' "$@"\n')
+                                     + 'env MOZ_X11_EGL=1 '
+                                     + shlex.quote(str(destination / 'firefox/firefox'))
+                                     + ' --no-remote --profile ' + shlex.quote(str(profile)) + ' "$@"\n')
             Path(command).chmod(0o755)
             shortcut(session, 'Firefox', 'Firefox', command + ' %u',
                      str(destination / 'firefox/browser/chrome/icons/default/default128.png'))
@@ -502,7 +523,67 @@ def auth_ready(username, password):
         return response.status == 200
 
 
-def bootstrap(firefox=True, framerate=30, bitrate=2000):
+INPUT_GUARD_JS = r'''(() => {
+  // Only cancel browser defaults over the stream, never stop input forwarding.
+  // OS-level Android BACK and reserved system shortcuts cannot be intercepted.
+  const streamTarget = target => target instanceof Element &&
+    !!target.closest('#overlayInput, #videoCanvas, #videoWorkerCanvas, #videoStream, #stream');
+  document.addEventListener('mousedown', event => {
+    if (event.button === 2 && streamTarget(event.target)) event.preventDefault();
+  }, {capture: true, passive: false});
+  document.addEventListener('contextmenu', event => {
+    if (streamTarget(event.target)) event.preventDefault();
+  }, {capture: true, passive: false});
+  window.pcfreeInputGuard = {version: 1, osBackCapture: false};
+  const addGamingButton = () => {
+    const nativeButton = document.querySelector('button.gaming-mode-button');
+    if (!nativeButton || document.getElementById('pcfree-play')) return !!nativeButton;
+    const button = document.createElement('button');
+    button.id = 'pcfree-play'; button.type = 'button'; button.textContent = 'Jugar';
+    button.title = 'Pantalla completa y captura de controles; requiere permisos del navegador';
+    button.style.cssText = 'position:fixed;bottom:12px;left:12px;z-index:10000;padding:8px 16px;background:#166534;color:white;border:1px solid #86efac;border-radius:8px;cursor:pointer';
+    button.addEventListener('click', () => {
+      // Use the upstream handler within this real user-activated click.
+      if (typeof window.webrtcInput?.enterGamingMode === 'function') window.webrtcInput.enterGamingMode();
+      else document.querySelector('button.gaming-mode-button')?.click();
+    });
+    const visibility = () => { button.hidden = !!document.fullscreenElement; };
+    document.addEventListener('fullscreenchange', visibility);
+    document.body.appendChild(button); visibility();
+    return true;
+  };
+  const start = () => {
+    if (addGamingButton()) return;
+    // Only the dashboard needs the CTA. Input-only iframe stays lightweight.
+    if (window.self !== window.top) return;
+    const observer = new MutationObserver(() => { if (addGamingButton()) observer.disconnect(); });
+    observer.observe(document.body, {childList: true, subtree: true});
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once: true});
+  else start();
+})();
+'''
+
+
+def prepare_web_client(source=None):
+    """Private static copy; keep upstream bundles and native Gaming Mode intact."""
+    source = Path(source or '/opt/selkies/lib/python3.12/site-packages/selkies/selkies_web')
+    if not (source / 'index.html').is_file() or not (source / 'assets').is_dir():
+        raise RuntimeError('Cambió la estructura del cliente Selkies; revisar paquete antes de aplicar controles.')
+    target = BASE / 'web-client'
+    shutil.copytree(source, target, dirs_exist_ok=True)
+    marker = '<script src="./pcfree-input-guard.js"></script>'
+    for index in target.glob('*.html'):
+        html = index.read_text()
+        if '</head>' not in html:
+            raise RuntimeError('Cliente web sin cabecera reconocible; no modificar bundles.')
+        if marker not in html:
+            index.write_text(html.replace('</head>', marker + '\n</head>', 1))
+    (target / 'pcfree-input-guard.js').write_text(INPUT_GUARD_JS)
+    return str(target)
+
+
+def bootstrap(firefox=True, framerate=60, bitrate=5000):
     if not isinstance(framerate, int) or not 1 <= framerate <= 60 or not isinstance(bitrate, int) or not 500 <= bitrate <= 20000:
         raise ValueError('FPS: 1–60; bitrate: 500–20000 kbps.')
     BASE.mkdir(mode=0o755, exist_ok=True)
@@ -533,6 +614,7 @@ def bootstrap(firefox=True, framerate=30, bitrate=2000):
                 raise RuntimeError('Python privado Selkies inesperado; no modificar Python del sistema.')
             python.unlink(); python.symlink_to('/usr/bin/python3.12')
             capture(['/opt/selkies/bin/selkies', '--help'])
+            web_root = prepare_web_client()
             tunnel = BASE / 'cloudflared'; download(CLOUDFLARED_URL, tunnel); tunnel.chmod(0o755)
         with phase('Bibliotecas 3D exactas, aisladas del kernel'):
             root, libraries = graphics(driver)
@@ -541,6 +623,14 @@ def bootstrap(firefox=True, framerate=30, bitrate=2000):
             for key in ('VK_DRIVER_FILES', 'VK_ICD_FILENAMES'):
                 env[key] = icd
                 session['env'][key] = icd
+            egl = BASE / 'nvidia-egl.json'
+            egl_library = next(root.rglob('libEGL_nvidia.so.0'), None)
+            if egl_library is None:
+                raise RuntimeError('Falta EGL NVIDIA para el navegador; no usar renderizado software silencioso.')
+            egl.write_text(json.dumps({'file_format_version': '1.0.0',
+                                      'ICD': {'library_path': str(egl_library)}}))
+            for mapping in (env, session['env']):
+                mapping['__EGL_VENDOR_LIBRARY_FILENAMES'] = str(egl)
             session['driver_version'] = driver
             session['settings'] = {'framerate': framerate, 'bitrate': bitrate, 'firefox': firefox}
             desktop_files(session)
@@ -582,12 +672,16 @@ EndSection
                                       stderr=subprocess.DEVNULL, timeout=3).returncode == 0
             wait_for(display_ready, 'Xorg', [xorg])
             renderer = capture(as_user(['glxinfo', '-B']), env=env)
+            (BASE / 'opengl.log').write_text(renderer)
             if 'NVIDIA' not in renderer or 'T4' not in renderer:
                 raise RuntimeError('OpenGL T4 no confirmado; revisar Xorg.log.')
             vulkan = capture(as_user(['vulkaninfo', '--summary']), env=env, timeout=30)
             (BASE / 'vulkan.log').write_text(vulkan)
             if not re.search(r'deviceName\s*=\s*[^\n]*T4', vulkan):
                 raise RuntimeError('Vulkan64 T4 no confirmado; revisar vulkan.log e ICD aislado.')
+            session['graphics'] = {'opengl_nvidia_t4': True, 'vulkan_nvidia_t4': True,
+                'gles_profile': next((line.strip() for line in renderer.splitlines()
+                                      if 'OpenGL ES profile version string' in line), 'No informado por glxinfo')}
             audio_env = dict(env); audio_env.pop('PULSE_SERVER', None)
             pulse = spawn(['pulseaudio', '--daemonize=no', '--exit-idle-time=-1', '--disallow-exit',
                            '--log-target=stderr'], 'pulse', audio_env, processes)
@@ -620,9 +714,17 @@ EndSection
             access = dict(username='pcfree', password=secrets.token_urlsafe(24), url=None)
             private_json(BASE / 'access.json', access)
             server_env = dict(env, SELKIES_BASIC_AUTH_USER=access['username'],
-                              SELKIES_BASIC_AUTH_PASSWORD=access['password'])
+                              SELKIES_BASIC_AUTH_PASSWORD=access['password'],
+                              SELKIES_KEYBOARD_SHORTCUTS='true',
+                              SELKIES_UI_SIDEBAR_SHOW_GAMING_MODE='true',
+                              SELKIES_UI_SIDEBAR_SHOW_FULLSCREEN='true',
+                              SELKIES_UI_SIDEBAR_SHOW_KEYBOARD_BUTTON='true',
+                              SELKIES_VIDEO_STREAMING_MODE='true|locked',
+                              SELKIES_USE_CPU='false|locked', SELKIES_AUTO_GPU='nvidia',
+                              SELKIES_RATE_CONTROL_MODE='cbr')
             server_env.pop('LD_PRELOAD', None)
             server = spawn(['/opt/selkies/bin/selkies', '--addr=127.0.0.1', f'--port={PORT}',
+                            '--web-root=' + web_root,
                             '--mode=websockets', '--enable-basic-auth=true', '--enable-https=false',
                             '--encoder=h264enc', f'--framerate={framerate}', f'--video-bitrate={bitrate}',
                             '--enable-resize=false', '--backpressure-queue-size=2'], 'selkies', server_env, processes)

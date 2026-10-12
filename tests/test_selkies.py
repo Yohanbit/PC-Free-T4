@@ -45,14 +45,33 @@ class SelkiesTests(unittest.TestCase):
             exec(''.join(document['cells'][1]['source']), env)
             calls = []
             env['_core']['bootstrap'] = lambda **kwargs: calls.append(kwargs) or {'env': {}}
-            env['optional_module'] = lambda name: self.fail('Optional installer ran: ' + name)
+            background = []
+            env['optional_module'] = lambda name: {'roblox_background': lambda session: background.append(session)}
             for cell in document['cells'][2:]:
                 if cell['cell_type'] == 'code':
                     exec(''.join(cell['source']), env)
-            self.assertEqual(calls, [{'firefox': True, 'framerate': 30, 'bitrate': 2000}])
+            self.assertEqual(calls, [{'firefox': True, 'framerate': 60, 'bitrate': 5000}])
+            self.assertEqual(len(background), 1)
             for key, value in env.items():
                 if key.startswith('INSTALL_') or key in ('EXPORT_WORLDS', 'RESTORE_WORLDS', 'STEAM_GAMEPADS'):
-                    self.assertIs(value, False, key)
+                    self.assertIs(value, key == 'INSTALL_ROBLOX', key)
+
+    def test_private_web_client_guard(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / 'upstream'
+            source.mkdir()
+            (source / 'assets').mkdir()
+            original = '<html><head></head><body>Selkies</body></html>'
+            (source / 'index.html').write_text(original)
+            with patch.object(CORE, 'BASE', Path(folder) / 'state'):
+                destination = Path(CORE.prepare_web_client(source))
+                self.assertEqual((source / 'index.html').read_text(), original)
+                self.assertIn('pcfree-input-guard.js', (destination / 'index.html').read_text())
+                self.assertEqual((destination / 'pcfree-input-guard.js').read_text(), CORE.INPUT_GUARD_JS)
+                CORE.prepare_web_client(source)
+                self.assertEqual((destination / 'index.html').read_text().count('pcfree-input-guard.js'), 1)
+                self.assertNotIn('stopPropagation', CORE.INPUT_GUARD_JS)
+                self.assertNotIn('pointerdown', CORE.INPUT_GUARD_JS)
 
     def test_version_exact_and_official_origin(self):
         data = 'lib | 580.82.09-0ubuntu1 | https://archive.ubuntu.com\nlib | 1:580.82.07-0ubuntu2 | https://archive.ubuntu.com'
@@ -76,22 +95,23 @@ class SelkiesTests(unittest.TestCase):
     def test_optional_installer_dispatch(self):
         document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text())
         calls = []
-        env = {'SESSION': {'env': {}},
+        env = {'SESSION': {'env': {}}, '_sober_task': None,
                'optional_module': lambda name: {
                    'install_steam': lambda session: calls.append(('steam', session)),
                    'install_gamepads': lambda session: calls.append(('gamepads', session)),
                    'install_app': lambda option, session: calls.append((option, session))}}
+        env['_apps'] = env['optional_module']('compat-apps.py')
         for cell in document['cells']:
             source = ''.join(cell['source'])
             if cell['cell_type'] != 'code' or not source.startswith('# @title'):
                 continue
-            for toggle in ('INSTALL_GAMEPADS', 'INSTALL_BLENDER', 'INSTALL_GODOT', 'INSTALL_VINEGAR', 'INSTALL_ROBLOX'):
+            for toggle in ('INSTALL_GAMEPADS', 'INSTALL_BLENDER', 'INSTALL_GODOT', 'INSTALL_VINEGAR'):
                 source = source.replace(toggle + ' = False', toggle + ' = True')
             if 'INSTALL_GAMEPADS =' in source or 'INSTALL_BLENDER =' in source:
                 exec(source, env)
-        self.assertEqual([call[0] for call in calls], ['gamepads', 'blender', 'godot', 'vinegar', 'roblox'])
+        self.assertEqual([call[0] for call in calls], ['gamepads', 'blender', 'godot', 'vinegar'])
         notes = '\n'.join(''.join(cell['source']) for cell in document['cells'] if cell['cell_type'] == 'markdown')
-        self.assertIn('comprueba primero el sandbox', notes)
+        self.assertIn('SSE4.1', notes)
         self.assertNotIn('namespaces bloqueados en esta VM', notes)
 
     def test_apt_rejects_kernel_driver_changes(self):

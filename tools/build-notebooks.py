@@ -53,8 +53,10 @@ def optional_module(name):
     return namespace
 '''
     intro = '''Selecciona **Entorno de ejecución → GPU T4** y usa **Ejecutar todo** en una VM nueva.
-Inicio mínimo: **Xorg NVIDIA + OpenGL/Vulkan64 T4 + XFCE 720p + audio + Selkies 2.0 + túnel HTTPS HTTP/2**.
-Firefox se descarga en segundo plano; terminal, archivos, descargas e instalador de paquetes
+Perfil gaming: **T4 + XFCE 720p + Selkies/NVENC H.264 + Turbo + 60 FPS objetivo + CBR 5 Mbps**.
+**Flatpak/Sober activados**: preparación en segundo plano tras publicar el acceso,
+condicionada al sandbox real. En la VM de desarrollo Colab bloqueó el montaje de `/proc`.
+Firefox con EGL NVIDIA/WebRender se descarga en segundo plano; terminal, archivos, descargas e instalador de paquetes
 Ubuntu están preparados. **No se abre ninguna aplicación automáticamente.**
 
 Colab administrado restringe escritorio/control remoto: utiliza esto solo donde el proveedor
@@ -66,19 +68,25 @@ sin cambiar el controlador. No reejecutar sobre otro escritorio.
 
 El enlace y la contraseña son privados, temporales y nuevos por sesión. **No guardar ni
 compartir salidas del cuaderno**. El túnel expone una pantalla autenticada en Internet;
-cerrar la VM al terminar. H.264 30 fps / 2 Mbps iniciales, ajustables: latencia no garantizada.
+cerrar la VM al terminar. Pulsar **Jugar** en la web para solicitar captura del ratón y teclado.
+FPS y bitrate son ajustables; rendimiento y latencia no garantizados.
 '''
     start = '''# @title Iniciar escritorio mínimo (no abre ventanas)
 DOWNLOAD_FIREFOX = True # @param {type:"boolean"}
-FRAMERATE = 30 # @param {type:"integer"}
-VIDEO_BITRATE_KBPS = 2000 # @param {type:"integer"}
+FRAMERATE = 60 # @param {type:"integer"}
+VIDEO_BITRATE_KBPS = 5000 # @param {type:"integer"}
+INSTALL_ROBLOX = True # @param {type:"boolean"}
 SESSION = _core['bootstrap'](firefox=DOWNLOAD_FIREFOX, framerate=FRAMERATE, bitrate=VIDEO_BITRATE_KBPS)
 browser_env = SESSION['env']  # Solo compatibilidad con respaldos manuales existentes.
+_apps = optional_module('compat-apps.py')
+_sober_task = _apps['roblox_background'](SESSION) if INSTALL_ROBLOX else None
 '''
     steam = '''# @title Steam opcional — instala, no inicia el cliente
 INSTALL_STEAM = False # @param {type:"boolean"}
 STEAM_GAMEPADS = False # @param {type:"boolean"}
 INSTALL_GAMEPADS = False # @param {type:"boolean"}
+if (INSTALL_STEAM or INSTALL_GAMEPADS) and _sober_task is not None:
+    _sober_task.join()  # Serializar APT con la descarga inicial de Sober.
 if INSTALL_STEAM:
     SESSION['steam'] = {'gamepads': STEAM_GAMEPADS}
     optional_module('compat-steam.py')['install_steam'](SESSION)
@@ -96,15 +104,14 @@ INSTALL_DEB_INSTALLER = False # @param {type:"boolean"}
 INSTALL_BLENDER = False # @param {type:"boolean"}
 INSTALL_GODOT = False # @param {type:"boolean"}
 INSTALL_VINEGAR = False # @param {type:"boolean"}
-INSTALL_ROBLOX = False # @param {type:"boolean"}
 _options = {'wine': INSTALL_WINE, 'prism': INSTALL_PRISM_MINECRAFT,
             'lutris': INSTALL_LUTRIS, 'heroic': INSTALL_HEROIC,
             'java': INSTALL_JAVA, 'gaming-libs': INSTALL_GAMING_LIBS,
             'deb-installer': INSTALL_DEB_INSTALLER, 'blender': INSTALL_BLENDER,
-            'godot': INSTALL_GODOT, 'vinegar': INSTALL_VINEGAR,
-            'roblox': INSTALL_ROBLOX}
+            'godot': INSTALL_GODOT, 'vinegar': INSTALL_VINEGAR}
 if any(_options.values()):
-    _apps = optional_module('compat-apps.py')
+    if _sober_task is not None:
+        _sober_task.join()
     for _option, _enabled in _options.items():
         if _enabled:
             _apps['install_app'](_option, SESSION)
@@ -118,13 +125,20 @@ Los mandos requieren `pcfree-run programa [argumentos]` y bibliotecas por arquit
 Steam ofrece fake-udev opcional. No se promete compatibilidad total de mandos o juegos.
 `INSTALL_GAMEPADS` prepara mandos independientemente, sin descargar Steam.
 Vinegar/Roblox Studio es experimental: instalación no equivale a ejecución validada.
-`INSTALL_ROBLOX` es experimental: comprueba primero el sandbox con namespaces de usuario
-y, si está disponible, intenta instalar Sober desde su fuente oficial mediante Flatpak
-de usuario. Se detiene con diagnóstico si el sandbox no está disponible; no modifica
-restricciones. La instalación y el cliente Roblox no están validados en una VM nueva.
+Sober se incluye por defecto; `INSTALL_ROBLOX` en la celda de inicio permite desactivarlo.
+Comprueba CPU x86-64, SSE4.1, kernel >=5.11 y el sandbox de namespaces de usuario.
+Instala Flatpak y, cuando el sandbox lo permite, Sober y la extensión NVIDIA exacta.
+No desactiva el sandbox ni cambia el controlador.
+El sandbox Bubblewrap con `/proc` se prueba antes de descargar runtimes; en la VM
+de desarrollo Colab rechazó ese montaje, por lo que Roblox no pudo ejecutarse.
+SSE4.2 y Vulkan >=1.1 son recomendados; SSE4.1 no se instala por software.
+Si la VM no cumple requisitos, conserva el escritorio y muestra un diagnóstico.
+Roblox sigue siendo experimental: descarga el juego al abrir Sober por primera vez.
 Usa también `pcfree-run /ruta/al/juego [argumentos]` para juegos descargados.
 Chrome/Chromium reciente recomendado: mandos, fullscreen y pointer lock dependen del
 navegador/dispositivo; Android y otros navegadores no ofrecen todas las funciones.
+Para apuntar: activar **Gaming mode** y capturar el ratón dentro del escritorio.
+Consultar la sección de controles del README antes de jugar desde Android.
 '''), code(steam), code(apps),
               markdown('''## Estado y diagnóstico
 Credenciales: salida privada de inicio; archivos locales separados en
@@ -132,6 +146,8 @@ Credenciales: salida privada de inicio; archivos locales separados en
 Registros por servicio en `/tmp/pcfree-selkies/`. Firefox informa éxito/error en la salida
 y en `firefox-status.txt`; para reintentar una descarga fallida usa
 `_core['firefox_background'](SESSION)`. Repetir el inicio no reinicia servicios activos;
+Sober: consultar `sober-status.txt` e `install-roblox.log`; reintentar con
+`_apps['roblox_background'](SESSION)` sin reiniciar el escritorio.
 si hay un arranque parcial, inspecciona registros y usa una VM nueva.
 ''')]
     for filename, title, full in [('PC-Free-T4.ipynb', 'PC-Free-T4', True),

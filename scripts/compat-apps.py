@@ -1,12 +1,15 @@
 """Optional applications. Install only; never start graphical applications."""
 import hashlib
+import fcntl
 import json
 import os
+import platform
 import pwd
 import re
 import shlex
 import subprocess
 import tarfile
+import threading
 import urllib.request
 import urllib.parse
 import zipfile
@@ -219,8 +222,46 @@ def install_vinegar(session):
           'Vinegar no ejecuta Roblox Player.')
 
 
+def sober_requirements(cpuinfo=None, machine=None, kernel=None):
+    """Validate hardware, not emulate CPU features or bypass kernel restrictions."""
+    machine = machine or platform.machine()
+    kernel = kernel or platform.release()
+    if machine not in {'x86_64', 'amd64'}:
+        raise RuntimeError('Sober requiere CPU x86-64; ARM no está soportado.')
+    match = re.match(r'(\d+)\.(\d+)', kernel)
+    if not match or tuple(map(int, match.groups())) < (5, 11):
+        raise RuntimeError('Sober requiere kernel Linux >=5.11.')
+    cpuinfo = Path('/proc/cpuinfo').read_text() if cpuinfo is None else cpuinfo
+    flags = [set(line.partition(':')[2].split()) for line in cpuinfo.splitlines()
+             if line.partition(':')[0].strip() == 'flags']
+    if not flags or not all('sse4_1' in item for item in flags):
+        raise RuntimeError('La CPU asignada no ofrece SSE4.1. No se puede añadir con un paquete; usar otra VM.')
+    return {'sse4_1': True, 'sse4_2': all('sse4_2' in item for item in flags), 'kernel': kernel}
+
+
+def ensure_flatpak_system_bus(log):
+    """Flatpak consults parental-control policy even for --user installs."""
+    def ready():
+        result = subprocess.run(['dbus-send', '--system', '--print-reply',
+                                 '--dest=org.freedesktop.DBus', '/org/freedesktop/DBus',
+                                 'org.freedesktop.DBus.ListNames'], capture_output=True,
+                                text=True, timeout=5)
+        return result.returncode == 0
+    with (BASE / 'flatpak-system-bus.lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if ready():
+            return
+        if Path('/run/dbus/system_bus_socket').exists():
+            raise RuntimeError('El bus de sistema existente no responde; no se reemplaza automáticamente.')
+        Path('/run/dbus').mkdir(mode=0o755, parents=True, exist_ok=True)
+        command(['dbus-daemon', '--system', '--fork', '--nopidfile'], log, timeout=15)
+        if not ready():
+            raise RuntimeError('D-Bus de sistema no disponible para Flatpak; revisar install-roblox.log.')
+
+
 def install_roblox(session):
     """Sober's official Flatpak only where the required kernel sandbox is available."""
+    requirements = sober_requirements()
     result = subprocess.run(['runuser', '-u', session['user'], '--', 'unshare',
                              '--user', '--map-root-user', '--mount', '--pid', '--fork', 'true'],
                             capture_output=True, text=True, timeout=10)
@@ -231,17 +272,82 @@ def install_roblox(session):
     log = BASE / 'install-roblox.log'
     command(['apt-get', 'update', '-qq'], log)
     command(['apt-get', 'install', '-y', '--no-install-recommends', 'flatpak'], log)
-    command(['runuser', '-u', session['user'], '--', 'env',
-             *[f'{k}={v}' for k, v in session['env'].items()],
-             'flatpak', '--user', 'install', '-y',
-             'https://flathub.org/repo/appstream/org.vinegarhq.Sober.flatpakref'], log, timeout=1200)
+    try:
+        # unshare alone can succeed while this required proc mount is denied.
+        # Probe a real Bubblewrap sandbox before downloading large runtimes.
+        command(['runuser', '-u', session['user'], '--', 'bwrap',
+                 '--unshare-user', '--unshare-pid', '--ro-bind', '/', '/',
+                 '--proc', '/proc', '--dev', '/dev', '--', '/usr/bin/true'], log, timeout=15)
+    except RuntimeError as error:
+        raise RuntimeError('Flatpak está instalado, pero esta VM no permite el sandbox '
+                           'Bubblewrap con /proc. No se descargan los runtimes ni se fuerza '
+                           'Roblox sin sandbox. Revisar install-roblox.log; usar un entorno '
+                           'Linux que permita Flatpak.') from error
+    ensure_flatpak_system_bus(log)
+    version = session.get('driver_version', '')
+    if not re.fullmatch(r'\d+\.\d+(?:\.\d+)?', version):
+        raise RuntimeError('No se conoce la versión NVIDIA exacta para Flatpak; no usar renderizado por software.')
+    driver = 'nvidia-' + version.replace('.', '-')
+    # Flatpak cannot use the host's isolated LD_LIBRARY_PATH/ICD. It needs its
+    # own GL extension matching the loaded NVIDIA kernel driver exactly.
+    env = {k: v for k, v in session['env'].items()
+           if k not in {'LD_PRELOAD', 'LD_LIBRARY_PATH', 'VK_DRIVER_FILES', 'VK_ICD_FILENAMES', '__EGL_VENDOR_LIBRARY_FILENAMES', 'SELKIES_INTERPOSER'}}
+    env['FLATPAK_GL_DRIVERS'] = driver + ':default'
+    prefix = ['runuser', '-u', session['user'], '--', 'env',
+              '-u', 'LD_PRELOAD', '-u', 'LD_LIBRARY_PATH', '-u', 'VK_DRIVER_FILES', '-u', 'VK_ICD_FILENAMES',
+              '-u', '__EGL_VENDOR_LIBRARY_FILENAMES',
+              *[f'{k}={v}' for k, v in env.items()], 'flatpak', '--user']
+    command([*prefix, 'remote-add', '--if-not-exists', 'flathub',
+             'https://flathub.org/repo/flathub.flatpakrepo'], log)
+    command([*prefix, 'install', '-y', '--noninteractive', 'flathub',
+             f'org.freedesktop.Platform.GL.{driver}//1.4'], log, timeout=1200)
+    command([*prefix, 'install', '-y', '--noninteractive', 'flathub',
+             'org.vinegarhq.Sober'], log, timeout=1200)
+    # Runs only /usr/bin/true inside the real app sandbox, never opens Roblox.
+    command([*prefix, 'run', '--command=true', 'org.vinegarhq.Sober'], log, timeout=30)
     wrapper = BASE / 'apps/sober-launch'
     wrapper.parent.mkdir(parents=True, exist_ok=True)
-    wrapper.write_text('#!/bin/sh\nexec flatpak run org.vinegarhq.Sober "$@"\n')
+    wrapper.write_text('#!/bin/sh\nexec env -u LD_PRELOAD -u LD_LIBRARY_PATH '
+                       '-u VK_DRIVER_FILES -u VK_ICD_FILENAMES -u __EGL_VENDOR_LIBRARY_FILENAMES '
+                       f'FLATPAK_GL_DRIVERS={shlex.quote(driver + ":default")} '
+                       'flatpak run org.vinegarhq.Sober "$@"\n')
     wrapper.chmod(0o755)
     shortcut(session, 'Roblox - Sober', str(wrapper))
+    (BASE / 'sober-requirements.json').write_text(json.dumps({**requirements, 'flatpak_gl_driver': driver,
+        'sandbox_smoke_test': True, 'game_validated': False}, indent=2))
     print('Sober instalado, sin abrir. Proyecto comunitario no respaldado por Roblox; '
           'inicio de sesión, juego y controladores todavía requieren pruebas.')
+
+
+_roblox_thread = None
+
+
+def roblox_background(session):
+    """Keep desktop access available while downloading the Flatpak runtimes."""
+    global _roblox_thread
+    if _roblox_thread is not None and _roblox_thread.is_alive():
+        print('Sober: instalación ya en curso.')
+        return _roblox_thread
+    def worker():
+        status = BASE / 'sober-status.txt'
+        try:
+            with (BASE / 'sober-install.lock').open('w') as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    print('Sober: otra instalación está en curso.', flush=True)
+                    return
+                install_roblox(session)
+                status.write_text('Instalado; abrir Roblox - Sober. Roblox se instala en el primer inicio.\n')
+        except Exception as error:
+            status.write_text('Instalación incompleta: ' + str(error) + '\n')
+            print('Sober: ' + str(error), flush=True)
+    BASE.mkdir(exist_ok=True)
+    (BASE / 'sober-status.txt').write_text('Instalando Flatpak, runtime NVIDIA y Sober en segundo plano.\n')
+    _roblox_thread = threading.Thread(target=worker, name='pcfree-sober', daemon=True)
+    _roblox_thread.start()
+    print('Sober/Flatpak: descarga en segundo plano; el escritorio ya está disponible.', flush=True)
+    return _roblox_thread
 
 
 def install_app(option, session):
