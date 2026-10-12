@@ -54,6 +54,14 @@ El repositorio separa los procedimientos reutilizables de los entornos de ejecuc
 
 ## ⚙️ Despliegue
 
+### ⚡ Inicio rápido (recomendado)
+
+[**Abrir PC-Free-T4-Rapido en Colab**](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4-Rapido.ipynb)
+
+Selecciona **GPU T4** y pulsa **Ejecutar todo** en un entorno nuevo. Arranca solamente XFCE, aceleración gráfica y RustDesk: Firefox, Battly y Steam ya no bloquean el acceso al escritorio. La última celda permite instalarlos después, desactivados por defecto. Battly y Steam preparan primero su usuario mediante Firefox.
+
+Se conservan las verificaciones de GPU, controlador y seguridad. La duración depende de Colab y de las descargas; no se promete un tiempo fijo. No reiniciar una sesión existente para aplicar este cambio. Usar únicamente donde las políticas del proveedor permitan escritorio remoto.
+
 1. Lee las [condiciones oficiales de Google Colab](https://research.google.com/colaboratory/faq.html#disallowed-activities).
 2. Abre `PC-Free-T4.ipynb` y selecciona una GPU compatible si está disponible y permitida.
 3. Ejecuta las etapas numeradas en orden, preferiblemente en un entorno nuevo.
