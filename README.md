@@ -23,13 +23,9 @@ Escritorio Ubuntu con NVIDIA Tesla T4, XFCE y acceso desde Chrome mediante Selki
 - Protección del clic derecho sobre la transmisión. Gaming Mode solicita ratón relativo y bloqueo de teclado.
 - Preparación de **Flatpak/Sober** en segundo plano. Comprueba SSE4.1, kernel y sandbox antes de descargar runtimes.
 
-**Roblox:** la VM de Colab comprobada bloquea el montaje de `/proc` que necesita Flatpak. Sober no puede ejecutarse allí. La instalación sólo continúa en VMs compatibles; no se desactiva el sandbox.
 
 **Android:** si el sistema convierte el clic derecho en Atrás, cambiar la asignación del ratón a clic derecho/menú contextual, si existe. La web no puede interceptar eventos que Android consume. Las teclas reservadas como Win/Alt+Tab tampoco están garantizadas.
 
-## Opcionales
-
-Activar una casilla y ejecutar su celda: Steam, mandos, Wine, Lutris, Heroic, Minecraft, Blender, Godot y Vinegar/Roblox Studio. No se abren automáticamente. Steam y Roblox siguen pendientes de validación de juego.
 
 [Compatibilidad y controles](COMPATIBILIDAD.md) · [Diagnóstico](CONTINUAR.md) · [Cambios](CHANGELOG.md)
 
