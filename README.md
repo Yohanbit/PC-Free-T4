@@ -13,9 +13,8 @@ Escritorio Ubuntu 24.04 con GPU NVIDIA Tesla T4, XFCE y acceso HTML5 mediante Se
 3. Abrir la **URL** que imprime Colab e introducir el **usuario y la contraseña** generados para esa sesión.
 4. Usar Chrome/Chromium actualizado. Pantalla completa, teclado, ratón relativo y mandos dependen del navegador y del dispositivo.
 
-El cuaderno contiene sus fuentes: no necesita clonar GitHub. No abre Firefox, terminales, gestores de archivos ni clientes de juegos al terminar la instalación.
+El cuaderno contiene sus fuentes: no necesita clonar GitHub
 
-**Condiciones del servicio:** Colab restringe el escritorio/control remoto. Usar únicamente donde el proveedor lo permita; consultar la [FAQ oficial](https://research.google.com/colaboratory/faq.html#disallowed-activities). Esta receta no evita restricciones ni mantiene sesiones vivas. GPU y duración no garantizadas.
 
 ## Configuración
 
@@ -30,9 +29,9 @@ El cuaderno contiene sus fuentes: no necesita clonar GitHub. No abre Firefox, te
 | Aplicaciones | Usuario sin privilegios y D-Bus persistente |
 | Ajustes iniciales | 720p, 30 FPS, 2 Mbps; modificables desde el cliente |
 
-El acceso aparece antes de completar las descargas opcionales. Firefox se descarga en segundo plano y crea su acceso directo cuando termina. Archivos, Descargas, Terminal e instalador limitado de paquetes Ubuntu quedan preparados. Las esperas usan comprobaciones de disponibilidad, no pausas fijas de arranque.
+Firefox se descarga en segundo plano y crea su acceso directo cuando termina. Archivos, Descargas, Terminal e instalador limitado de paquetes Ubuntu quedan preparados. Las esperas usan comprobaciones de disponibilidad.
 
-No se instalan controladores del kernel ni se sustituye Python del sistema. Si APT no ofrece las bibliotecas NVIDIA exactas, el arranque se detiene con un diagnóstico. No hay un tiempo de inicio fijo: depende de la VM, APT y las descargas.
+ No hay un tiempo de inicio fijo: depende de la VM, APT y las descargas.
 
 ## Aplicaciones y juegos opcionales
 
@@ -51,7 +50,7 @@ Activar únicamente las casillas necesarias y ejecutar esa celda. La instalació
 | Roblox Player | [Sober](https://sober.vinegarhq.org/) mediante Flatpak oficial. Comprueba primero el sandbox del kernel; si no está disponible, cancela la instalación. Juego no validado. |
 | Paquetes Linux | Bibliotecas SDL/audio de 32 bits e instalador DEB opcionales. AppImages compatibles se extraen sin FUSE. |
 
-Vinegar y Sober son proyectos comunitarios, no clientes Linux respaldados por Roblox. Roblox Player para Windows no se ofrece mediante Wine. No se eluden sistemas anticheat. Steam/Proton, sandbox de Electron, DRM y juegos con anticheat requieren validación individual.
+ con anticheat requieren validación individual.
 
 Para iniciar un juego descargado con el entorno gráfico y los dispositivos virtuales:
 
@@ -78,5 +77,3 @@ python3 tests/test_selkies.py
 python3 tests/test_steam_setup.py
 python3 tests/test_apps.py
 ```
-
-**Validación:** Selkies desde Android, OpenGL 4.6, Vulkan 1.4 en la T4 y codificación NVENC comprobados en la sesión de desarrollo. Steam oficial y bibliotecas de mandos instalados sin abrir aplicaciones. El nuevo arranque integrado, el login de Steam, los juegos y los controles requieren pruebas completas. Las pruebas locales verifican código y configuración, no sustituyen esas pruebas.
