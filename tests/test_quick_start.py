@@ -1,41 +1,32 @@
-"""Offline scheduling tests; never install software or contact Colab."""
+"""Offline notebook scheduling; never install software or contact Colab."""
 import ast
 import json
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-quick = json.loads((root/'PC-Free-T4-Rapido.ipynb').read_text())
-env = {}
-exec(''.join(quick['cells'][1]['source']), env)
-original = env['SOURCES'].copy()
-for name, source in original.items():
-    assert source == (root/'scripts'/name).read_text()
-env['SOURCES'] = {name: 'called.append('+repr(name)+')' for name in original}
-env['called'] = []
-exec(''.join(quick['cells'][2]['source']), env)
-expected = [*env['ORDER'][:5], '07-rustdesk.py']
-assert env['called'] == expected
-exec(''.join(quick['cells'][4]['source']), env)
-assert env['called'] == expected, 'Optional apps ran by default'
-env['run_stage']('07-rustdesk.py')
-assert env['called'] == expected, 'Repeated stage was not skipped'
-try:
-    env['run_stage']('06-battly.py')
-except AssertionError:
-    pass
-else:
-    raise AssertionError('Battly ran before application-user setup')
-env['run_stage']('05-firefox.py')
-env['run_stage']('08-steam.py')
-assert '06-battly.py' not in env['called'], 'Steam depends on unrelated Battly'
-env['SOURCES']['06-battly.py'] = "raise RuntimeError('test failure')"
-try:
-    env['run_stage']('06-battly.py')
-except RuntimeError:
-    pass
-assert '06-battly.py' not in env['COMPLETED']
-for cell in quick['cells']:
-    if cell['cell_type'] == 'code':
-        ast.parse(''.join(cell['source']))
+for filename in ('PC-Free-T4.ipynb', 'PC-Free-T4-Rapido.ipynb'):
+    notebook = json.loads((root / filename).read_text())
+    code = [cell for cell in notebook['cells'] if cell['cell_type'] == 'code']
+    runner = ast.parse(''.join(code[0]['source']))
+    embedded = ast.literal_eval(runner.body[0].value)
+    assert {'selkies-desktop.py', 'compat-steam.py', 'compat-apps.py'} <= set(embedded)
+    for name, source in embedded.items():
+        assert source == (root / 'scripts' / name).read_text()
+    events = []
+    env = {'_core': {'bootstrap': lambda **args: events.append(('core', args)) or {'env': {}}},
+           'optional_module': lambda name: (_ for _ in ()).throw(AssertionError('Optional installer ran by default'))}
+    for cell in code[1:]:
+        source = ''.join(cell['source'])
+        tree = ast.parse(source)
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and (target.id.startswith('INSTALL_') or target.id == 'STEAM_GAMEPADS'):
+                        assert isinstance(node.value, ast.Constant) and node.value.value is False
+        exec(compile(tree, filename, 'exec'), env)
+    assert len(events) == 1 and events[0][0] == 'core'
+    assert events[0][1]['firefox'] is True
+    assert events[0][1]['framerate'] == 30 and events[0][1]['bitrate'] == 2000
+    for cell in code:
         assert cell['outputs'] == [] and cell['execution_count'] is None
-print('PASS: minimal startup, optional defaults, dependencies, idempotency, failure tracking, clean outputs.')
+print('PASS: standalone entrypoints, core-only startup, optional defaults, background Firefox, clean outputs.')

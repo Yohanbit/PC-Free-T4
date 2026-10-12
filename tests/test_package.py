@@ -17,8 +17,9 @@ runner=ast.parse(''.join(desktop['cells'][1]['source']))
 embedded=ast.literal_eval(runner.body[0].value)
 for name,source in embedded.items():
     assert source==(root/'scripts'/name).read_text(), 'Cuaderno desactualizado: '+name
-assert '.Xauthority' in embedded['03-xorg.py'] and "'-ac'" not in embedded['03-xorg.py']
-assert '580.82.07' in embedded['00-preflight.py']
+assert 'selkies-desktop.py' in embedded and 'compat-steam.py' in embedded and 'compat-apps.py' in embedded
+assert '.Xauthority' in embedded['selkies-desktop.py'] and "'-ac'" not in embedded['selkies-desktop.py']
+assert 'matching_version' in embedded['selkies-desktop.py']
 
 with tempfile.TemporaryDirectory(prefix='pcfree-backup-test-') as folder:
     home=Path(folder)/'home';home.mkdir()
@@ -72,4 +73,4 @@ with tempfile.TemporaryDirectory(prefix='pcfree-backup-test-') as folder:
         os.chdir(oldcwd)
 
 print('PASS: syntax, empty notebook outputs, embedded sources, fictional world round-trip, privacy boundaries, traversal rejection.')
-print('NOT TESTED: fresh Colab setup, real Minecraft saves, Google Drive authorization/copy, Steam Link.')
+print('NOT TESTED: fresh Colab setup, real Minecraft saves, Google Drive authorization/copy, Steam login, game controllers.')

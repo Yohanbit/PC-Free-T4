@@ -1,136 +1,82 @@
-<div align="center">
+# PC-Free-T4
 
-# ⚡ PC-Free-T4
+Escritorio Ubuntu 24.04 con GPU NVIDIA Tesla T4, XFCE y acceso HTML5 mediante Selkies 2.0. El arranque prepara OpenGL, Vulkan, audio y un enlace HTTPS autenticado. No requiere instalar un cliente remoto en el teléfono.
 
-### EXPERIMENTAL LINUX DESKTOP · NVIDIA GPU · GOOGLE COLAB
-
-**Entorno Linux reconstruible con aceleración gráfica, acceso remoto y gestión de respaldos.**
+## Ejecutar en Google Colab
 
 [![Abrir en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4.ipynb)
 
-![Status](https://img.shields.io/badge/STATUS-EXPERIMENTAL-orange?style=for-the-badge)
-![OS](https://img.shields.io/badge/OS-Ubuntu%2024.04-E95420?style=for-the-badge&logo=ubuntu&logoColor=white)
-![GPU](https://img.shields.io/badge/GPU-NVIDIA%20Tesla%20T4-76B900?style=for-the-badge&logo=nvidia&logoColor=white)
-![Platform](https://img.shields.io/badge/PLATFORM-Google%20Colab-F9AB00?style=for-the-badge&logo=googlecolab&logoColor=white)
+[Cuaderno principal](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4.ipynb) · [Inicio rápido](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4-Rapido.ipynb)
 
-[🚀 Iniciar escritorio](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4.ipynb) · [💾 Notebook de respaldos](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/Drive-Backups.ipynb) · [📋 Políticas de Colab](https://research.google.com/colaboratory/faq.html#disallowed-activities)
+1. Seleccionar **Entorno de ejecución → Cambiar tipo de entorno → GPU T4**.
+2. Ejecutar el cuaderno en una VM nueva. Los instaladores opcionales están desactivados.
+3. Abrir la **URL** que imprime Colab e introducir el **usuario y la contraseña** generados para esa sesión.
+4. Usar Chrome/Chromium actualizado. Pantalla completa, teclado, ratón relativo y mandos dependen del navegador y del dispositivo.
 
-</div>
+El cuaderno contiene sus fuentes: no necesita clonar GitHub. No abre Firefox, terminales, gestores de archivos ni clientes de juegos al terminar la instalación.
 
----
+**Condiciones del servicio:** Colab restringe el escritorio/control remoto. Usar únicamente donde el proveedor lo permita; consultar la [FAQ oficial](https://research.google.com/colaboratory/faq.html#disallowed-activities). Esta receta no evita restricciones ni mantiene sesiones vivas. GPU y duración no garantizadas.
 
-## 🧬 Descripción
+## Configuración
 
-**PC-Free-T4** es un proyecto experimental para reconstruir un escritorio Linux en Google Colab utilizando una configuración orientada a aplicaciones gráficas, administración remota y juegos.
+| Componente | Implementación |
+| --- | --- |
+| Escritorio | XFCE sin compositor; Xorg local autenticado, 1280 × 720 |
+| Renderizado | Bibliotecas NVIDIA de la misma versión que el controlador del host; extracción aislada |
+| APIs 3D | OpenGL y Vulkan de 64 bits; multiarch opcional para Steam/Wine |
+| Transmisión | Selkies 2.0, WebSockets, H.264/NVENC cuando está disponible |
+| Transporte externo | Cloudflare Tunnel por HTTP/2; origen limitado a loopback |
+| Audio | PulseAudio, salida virtual y monitor de captura |
+| Aplicaciones | Usuario sin privilegios y D-Bus persistente |
+| Ajustes iniciales | 720p, 30 FPS, 2 Mbps; modificables desde el cliente |
 
-| Componente | Tecnología |
-|:---|:---|
-| Sistema operativo | Ubuntu 24.04 |
-| Escritorio | XFCE |
-| GPU de referencia | NVIDIA Tesla T4 |
-| Controlador observado | `580.82.07` |
-| Acceso remoto | RustDesk |
-| Aplicaciones | Firefox · Battly · Steam |
-| Persistencia | ZIP de mundos + Google Drive |
+El acceso aparece antes de completar las descargas opcionales. Firefox se descarga en segundo plano y crea su acceso directo cuando termina. Archivos, Descargas, Terminal e instalador limitado de paquetes Ubuntu quedan preparados. Las esperas usan comprobaciones de disponibilidad, no pausas fijas de arranque.
 
-> [!IMPORTANT]
-> Este proyecto no es Windows, una imagen de disco ni una máquina persistente. Google Colab puede terminar las sesiones y la disponibilidad de una GPU T4 no está garantizada.
+No se instalan controladores del kernel ni se sustituye Python del sistema. Si APT no ofrece las bibliotecas NVIDIA exactas, el arranque se detiene con un diagnóstico. No hay un tiempo de inicio fijo: depende de la VM, APT y las descargas.
 
-## 🏗️ Arquitectura
+## Aplicaciones y juegos opcionales
 
-El repositorio separa los procedimientos reutilizables de los entornos de ejecución.
+Activar únicamente las casillas necesarias y ejecutar esa celda. La instalación no abre aplicaciones automáticamente.
 
-| Archivo / directorio | Función |
-|:---|:---|
-| `scripts/` | Scripts de instalación y configuración. |
-| `PC-Free-T4.ipynb` | Preparación del escritorio en Google Colab. |
-| `Drive-Backups.ipynb` | Transferencia de respaldos a Google Drive desde un entorno CPU. |
-| `tools/build-notebooks.py` | Generación o actualización de notebooks. |
-| `tests/test_package.py` | Pruebas automatizadas del paquete. |
-| `CHANGELOG.md` | Historial técnico de cambios. |
-| `CONTINUAR.md` | Contexto para retomar el proyecto. |
+| Opción | Fuente / alcance |
+| --- | --- |
+| Steam | [Cliente oficial](https://store.steampowered.com/about/), bibliotecas NVIDIA de 32/64 bits y lanzador no-root. El acceso a la cuenta sigue pendiente de validación. |
+| Mandos | [Input Interposer y fake-udev](https://docs.selkies.io/latest/components/input-interposer), sin depender de `/dev/uinput`. Necesita aplicaciones iniciadas con `pcfree-run`. |
+| Wine y Winetricks | Paquetes Ubuntu para programas Windows. No equivalen a compatibilidad universal. |
+| Lutris / Heroic | [Lutris](https://lutris.net/) desde Ubuntu; [Heroic](https://heroicgameslauncher.com/) desde su publicación oficial. |
+| Minecraft | [Prism Launcher](https://prismlauncher.org/) y Java 21. Requiere cuenta y versión/mods compatibles. |
+| Blender | Paquete nativo de Ubuntu. [Proyecto oficial](https://www.blender.org/). |
+| Godot | Editor Linux x86_64 de la [publicación oficial](https://godotengine.org/download/linux/). |
+| Roblox Studio | [Vinegar](https://vinegarhq.org/Vinegar/Installation.html) compilado desde su código oficial. Experimental; Wine y Studio se descargan al abrirlo. |
+| Roblox Player | [Sober](https://sober.vinegarhq.org/) mediante Flatpak oficial. Comprueba primero el sandbox del kernel; si no está disponible, cancela la instalación. Juego no validado. |
+| Paquetes Linux | Bibliotecas SDL/audio de 32 bits e instalador DEB opcionales. AppImages compatibles se extraen sin FUSE. |
 
-*Verifica que las rutas indicadas existan en `main` antes de publicar esta documentación.*
+Vinegar y Sober son proyectos comunitarios, no clientes Linux respaldados por Roblox. Roblox Player para Windows no se ofrece mediante Wine. No se eluden sistemas anticheat. Steam/Proton, sandbox de Electron, DRM y juegos con anticheat requieren validación individual.
 
-## ⚙️ Despliegue
-
-### ⚡ Inicio rápido (recomendado)
-
-[**Abrir PC-Free-T4-Rapido en Colab**](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4-Rapido.ipynb)
-
-Selecciona **GPU T4** y pulsa **Ejecutar todo** en un entorno nuevo. Arranca solamente XFCE, aceleración gráfica y RustDesk: Firefox, Battly y Steam ya no bloquean el acceso al escritorio. La última celda permite instalarlos después, desactivados por defecto. Battly y Steam preparan primero su usuario mediante Firefox.
-
-Se conservan las verificaciones de GPU, controlador y seguridad. La duración depende de Colab y de las descargas; no se promete un tiempo fijo. No reiniciar una sesión existente para aplicar este cambio. Usar únicamente donde las políticas del proveedor permitan escritorio remoto.
-
-1. Lee las [condiciones oficiales de Google Colab](https://research.google.com/colaboratory/faq.html#disallowed-activities).
-2. Abre `PC-Free-T4.ipynb` y selecciona una GPU compatible si está disponible y permitida.
-3. Ejecuta las etapas numeradas en orden, preferiblemente en un entorno nuevo.
-4. Comprueba el renderizador gráfico y revisa los errores antes de continuar.
-5. Conecta el escritorio mediante RustDesk utilizando las credenciales temporales de la sesión.
-
-### Verificación de GPU
+Para iniciar un juego descargado con el entorno gráfico y los dispositivos virtuales:
 
 ```bash
-glxinfo -B
+pcfree-run /ruta/al/programa argumentos
 ```
 
-El renderizador debe identificar la GPU NVIDIA esperada. Si aparece `llvmpipe`, la aceleración gráfica por hardware no está validada.
+## Seguridad y persistencia
 
-> [!WARNING]
-> No fuerces versiones incompatibles del controlador ni reemplaces componentes del sistema para ignorar errores de instalación. La receta utiliza bibliotecas gráficas aisladas y debe detenerse cuando no pueda verificar las condiciones necesarias.
+- URL y contraseña temporales, generadas por sesión. El túnel publica un acceso autenticado en Internet; no compartir las credenciales.
+- No guardar salidas del cuaderno en GitHub. El disco de la VM y las sesiones de las aplicaciones son temporales.
+- Exportar mundos manualmente desde el cuaderno. Restaurar crea carpetas nuevas, sin sobrescribir mundos existentes.
+- [Respaldos separados en Google Drive](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/Drive-Backups.ipynb). Drive no se monta durante el arranque del escritorio.
 
-## 💾 Respaldos y persistencia
+## Desarrollo y diagnóstico
 
-**GitHub conserva el código; no conserva automáticamente la sesión activa.**
+`scripts/selkies-desktop.py` contiene el arranque; `compat-steam.py` y `compat-apps.py`, los opcionales. Estado y registros: `/tmp/pcfree-selkies/`. Consultar [operación](CONTINUAR.md) y [cambios](CHANGELOG.md).
 
-La exportación documentada permite seleccionar mundos de Minecraft y generar un ZIP con un manifiesto de integridad.
+```bash
+python3 tools/build-notebooks.py
+python3 tests/test_package.py
+python3 tests/test_quick_start.py
+python3 tests/test_selkies.py
+python3 tests/test_steam_setup.py
+python3 tests/test_apps.py
+```
 
-| Elemento | ¿Se conserva? |
-|:---|:---|
-| Scripts y documentación versionados | ✅ En GitHub |
-| Sesión de Colab | ❌ No garantizada |
-| Mundos exportados | ✅ En el ZIP |
-| Mods y configuración completa | ❌ No incluidos necesariamente |
-| Cuentas y credenciales | ❌ No incluidos |
-
-### Exportar y restaurar
-
-1. Cierra el mundo usando **Guardar y salir**.
-2. Ejecuta la celda de exportación y selecciona los mundos deseados.
-3. Descarga el ZIP o transfiérelo mediante `Drive-Backups.ipynb`.
-4. Para restaurar, selecciona la carpeta `saves` de la instancia correcta y ejecuta la celda correspondiente.
-
-[![Abrir notebook de respaldos](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/Drive-Backups.ipynb)
-
-> [!CAUTION]
-> La exportación, la restauración y el flujo de Drive se han probado con archivos ficticios. Todavía no se han validado de extremo a extremo con una partida real ni con una cuenta real de Google Drive. No presupongas que existe un respaldo real hasta comprobarlo.
-
-## 📡 Acceso remoto y streaming
-
-RustDesk se mantiene como mecanismo de administración y conexión de respaldo.
-
-**Steam Link continúa en evaluación.** Antes de sustituir RustDesk, deben verificarse el inicio de sesión de Steam, el emparejamiento con Android, los controles, el giro de cámara, el audio y la estabilidad durante una sesión prolongada.
-
-La compatibilidad con un escritorio remoto no garantiza una experiencia de juego fluida.
-
-
-## 🛡️ Seguridad y condiciones
-
-- Mantén privados los identificadores y las contraseñas temporales de RustDesk.
-- Descarga los programas desde fuentes oficiales.
-- Verifica los ZIP antes de restaurarlos y conserva copias externas.
-- No publiques tokens, credenciales ni datos personales.
-- Utiliza Google Colab exclusivamente de acuerdo con sus políticas.
-- Respeta las licencias y condiciones de los programas de terceros.
-
-Los binarios de terceros no se distribuyen desde este repositorio.
-
----
-
-<div align="center">
-
-**PC-Free-T4** · Experimental environment engineering
-
-<sub>Automatización · GPU · Linux · Persistencia verificable</sub>
-
-</div>
+**Validación:** Selkies desde Android, OpenGL 4.6, Vulkan 1.4 en la T4 y codificación NVENC comprobados en la sesión de desarrollo. Steam oficial y bibliotecas de mandos instalados sin abrir aplicaciones. El nuevo arranque integrado, el login de Steam, los juegos y los controles requieren pruebas completas. Las pruebas locales verifican código y configuración, no sustituyen esas pruebas.

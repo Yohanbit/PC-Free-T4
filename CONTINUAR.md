@@ -1,48 +1,40 @@
-# Punto de continuación · 11 octubre 2026
+# Operación
 
-## Propósito
-Reconstruir una sesión Linux con GPU y acceso desde Android, conservando cambios de configuración en este repositorio. PC-Free Windows en Codespaces es un proyecto separado y no se borra ni se reinicia por ejecutar esta receta.
+## Arranque
 
-## Comprobado en la sesión original
-- NVIDIA Tesla T4, controlador 580.82.07 y OpenGL 4.6 mediante bibliotecas oficiales aisladas.
-- Xorg :98 y XFCE 1280×720; demo gráfica NVIDIA ejecutada antes de abrir juegos.
-- RustDesk 1.4.4 mostró Ready y el usuario confirmó conexión real desde Android.
-- Teclado y ratón funcionan en aplicaciones del escritorio remoto.
-- Firefox oficial instalado como usuario de aplicaciones, sin desactivar sandbox.
-- Battly Linux TAR 3.0.1 descargado oficialmente, con SHA256 verificado y arreglo acotado del actualizador que quedaba esperando AppImage.
-- Usuario abrió un mundo de Minecraft. La captura más reciente dice 26.3; no afirmar que se comprobó 1.21.11.
-- Steam oficial actualizado, dependencias de 32 bits corregidas y pantalla de inicio de sesión observada. No está confirmado el login ni Steam Link.
+Usar los cuadernos autocontenidos publicados en `main`. El cuaderno principal incluye respaldo manual; el inicio rápido contiene el mismo arranque y los mismos opcionales. No ejecutar el instalador sobre otro Xorg activo.
 
-## Pendiente
-- Tras terminar solo los procesos bloqueados de Steam y abrir con `-cef-disable-gpu`, volvió a aparecer la pantalla de login. El acceso directo conserva ese parámetro para la interfaz; Minecraft sigue abierto y no se cambió su aceleración gráfica. Pedir prueba real de login desde RustDesk; aún no confirmar solución definitiva.
-- Steam se cerró tras intentos de login: registros muestran bloqueo interno y desconexión fatal de D-Bus. Se probó bus privado persistente y se observaron procesos vivos/respuesta del bus; el inicio de sesión y la estabilidad siguen pendientes. No usar contraseñas del chat, borrar perfiles ni cerrar Minecraft para probar.
-- RustDesk transmite mal el caminar sostenido y no permite girar la cámara en la partida. Causa exacta no establecida; no culpar a GPU ni a Minecraft sin medir.
-- Probar Steam Link con cuenta del usuario, sin compras, y comprobar controles/cámara. Falta /dev/uinput en el entorno original: no asumir soporte completo de entrada.
-- Medir rendimiento, sonido y estabilidad. No derivar FPS de Minecraft de una demo OpenGL.
-- Reconstrucción integrada desde cero y restauración jugable pendientes de validación. Se exportaron datos reales de Minecraft a Drive y se verificó su integridad descargándolos nuevamente; no publicar datos ni IDs personales. No cerrar la sesión actual solo para probar el instalador.
+La configuración exige Ubuntu 24.04 amd64, una T4 y paquetes NVIDIA cuya versión upstream coincida exactamente con el controlador activo. Se usan los repositorios oficiales Ubuntu y NVIDIA CUDA para Ubuntu 24.04. Las bibliotecas se extraen sin instalar módulos, DKMS o controladores del kernel.
 
-## Precauciones y persistencia
-- GPU gratuita y duración no garantizadas; Colab restringe el escritorio remoto. No usar anti-idle, evasión, túneles destinados a eludir límites ni recreación automática.
-- El repositorio guarda código, no memoria de la máquina, contraseñas, partidas ni sesiones de cuentas.
-- No montar Drive en el runtime de escritorio. Para Drive, usar respaldo descargado y app de Drive, o el cuaderno CPU limpio separado.
-- Mantener datos de conexión solo en interfaz/salida privada. No guardar ID o contraseña temporal, QR de login ni tokens en archivos o commits.
-- No sobreescribir partidas; restaurar en nuevas carpetas y comprobar compatibilidad de versión/mods.
+## Estado local
 
-## Retomar
-Leer archivos vigentes del repo antes de cambiar nada. Si la máquina sigue viva, conectar a ella: no lanzar una nueva innecesariamente. Si ya desapareció, usar el cuaderno y recuperar los mundos desde el último respaldo disponible. El usuario deberá completar login/CAPTCHA/emparejamiento cuando el servicio lo pida.
+- `/tmp/pcfree-selkies/session.json`: usuario, entorno gráfico, rutas, controlador y procesos. No contiene contraseñas ni tokens de Colab.
+- `/tmp/pcfree-selkies/access.json`: acceso temporal al escritorio; permisos `0600`.
+- `/tmp/pcfree-selkies/*.log`: instalación, Xorg, Vulkan, escritorio, audio, Selkies y túnel.
+- `/tmp/pcfree-selkies/firefox-status.txt`: descarga en segundo plano, completada o fallida.
 
-### Instrucción de continuación guardada
-- Petición de activación: **«Ejecuta mi repositorio PC-Free-T4»** o **«Arranca PC-Free-T4 y continúa donde lo dejamos»**. Consultar siempre `main`, no depender de un chat anterior.
-- **RustDesk es provisional**, para administración y respaldo de acceso. No dar por resueltos los controles de Minecraft con RustDesk.
-- **Steam Link sigue en pruebas.** El próximo paso es confirmar que Steam completa el login sin cerrarse, emparejar el Android y probar teclado sostenido y ratón relativo/cámara. Después comprobar sonido y estabilidad. No marcar Steam Link como operativo sin prueba real del usuario.
-- Mantener RustDesk y la GPU T4 gráfica mientras se prueba la alternativa; no cerrar Minecraft, reinstalar el entorno ni modificar PC-Free Windows como parte de este diagnóstico.
-- Existe un respaldo real privado en Drive, con integridad verificada tras descargarlo. Consultar el estado privado del propietario, no este repositorio público, para localizarlo. Falta restaurarlo y abrirlo en Minecraft antes de afirmar recuperación jugable. Seguir PERSONAL-DRIVE.md para separar cuentas y datos de cada persona.
-- Conservar en este repositorio los cambios futuros de configuración y su estado de pruebas, sin publicar credenciales ni datos personales. No implica sincronización automática del disco activo.
+Repetir el arranque conserva una sesión registrada y activa. Un estado incompleto se detiene para diagnóstico: no mata ni reconstruye servicios automáticamente.
 
-## Mantener el repositorio
-Actualizar scripts, regenerar cuadernos, ejecutar pruebas, revisar privacidad, actualizar CHANGELOG/estado y publicar un commit mínimo en main. No afirmar que una modificación publicada está aplicada al runtime activo hasta ejecutarla y observar su resultado.
+## Aplicaciones
 
-## Cierre y datos personales · actualización
-- A petición del propietario se finalizó el runtime temporal después del respaldo verificado. No reutilizar IDs o contraseñas antiguas de RustDesk.
-- Cada persona conecta su propio Drive y guarda sus datos en una carpeta privada PC-Free-T4. No crear un Drive compartido ni ejecutar archivos arbitrarios guardados allí. Ver PERSONAL-DRIVE.md.
-- Al retomar: revisar si existe sesión activa; en su ausencia reconstruir receta, recuperar último respaldo válido en una carpeta nueva y comprobar versiones. RustDesk temporal; Steam Link sigue pendiente. No se verificó recuperación completa desde cero.
+`pcfree-run programa [argumentos]` utiliza el usuario del escritorio y sus variables de X11, audio, D-Bus y GPU. Los dispositivos virtuales se precargan únicamente en las aplicaciones, nunca en Selkies. La expansión `$LIB` selecciona las bibliotecas de 32/64 bits por proceso.
+
+Los instaladores son optativos y no abren ventanas. Steam mantiene cuentas, juegos y configuraciones; una reparación explícita pone en cuarentena únicamente los binarios redistribuibles del cliente. No ejecutar esa reparación mientras Steam esté abierto.
+
+Vulkan de 64 bits se verifica durante el arranque. Steam configura su propio ICD multiarch y sustituye ambas variables `VK_DRIVER_FILES` y `VK_ICD_FILENAMES` para sus procesos. No instalar bibliotecas NVIDIA de otra versión para resolver una dependencia.
+
+## Pruebas pendientes
+
+- Arranque integrado completo desde una VM nueva y medición de sus tiempos.
+- Inicio de sesión y estabilidad de Steam; juego nativo y Proton por separado.
+- Teclado relativo y mandos dentro de juegos, no únicamente en el escritorio.
+- Ejecución real de Blender, Godot, Vinegar/Studio y Sober/Roblox.
+- Restauración jugable de mundos y autorización individual de Drive.
+
+La sesión de desarrollo confirmó Selkies desde Android, NVENC H.264, OpenGL 4.6 y Vulkan 1.4 en la T4. Se reinstaló Steam oficial y se compilaron las bibliotecas de mandos de 32/64 bits. No extrapolar estas pruebas a login, controles o ejecución de todos los programas.
+
+## Mantenimiento
+
+Editar fuentes, regenerar los cuadernos y ejecutar las pruebas locales antes de publicar. Mantener salidas y contadores de ejecución vacíos. Nunca versionar enlaces actuales de túnel, credenciales, perfiles de aplicaciones ni partidas.
+
+Los límites y las políticas de Colab siguen aplicándose. No añadir anti-idle, recreación automática ni cambios destinados a evitar restricciones del proveedor.

@@ -1,5 +1,17 @@
 # Cambios
 
+## 2026-10-12 · escritorio HTML5 y arranque mínimo
+- Sustituido el flujo de acceso anterior por Selkies 2.0 y túnel HTTPS HTTP/2 autenticado.
+- Cuadernos autocontenidos con fuentes embebidas, credenciales nuevas por sesión y salidas limpias.
+- Escritorio 720p sin compositor; usuario no-root, D-Bus persistente y audio virtual autenticado.
+- OpenGL y Vulkan con bibliotecas NVIDIA exactas y aisladas; validación del renderizador antes de publicar el acceso.
+- Firefox en segundo plano, accesos preparados y ninguna aplicación abierta por el instalador.
+- Steam oficial opcional con soporte multiarch y cuarentena limitada de binarios. Inicio de sesión aún no validado.
+- Mandos opcionales mediante Input Interposer/fake-udev para ambos ELF.
+- Añadidos opcionales Wine, Lutris, Heroic, Prism/Java, Blender, Godot, Vinegar/Studio y Sober con comprobación del sandbox.
+- Retirados los scripts de acceso remoto antiguos del flujo distribuido. Respaldos manuales separados conservados.
+- Pruebas locales de configuración y privacidad. Arranque integrado desde una VM nueva y aplicaciones/juegos pendientes de validación.
+
 ## 2026-10-11 · instrucciones para retomar y acceso provisional
 - Guardadas las peticiones «Ejecuta mi repositorio PC-Free-T4» y «Arranca PC-Free-T4 y continúa donde lo dejamos», con lectura de main y comprobación de sesión existente antes de reconstruir.
 - Aclarado que RustDesk es temporal para administrar el escritorio; Steam Link sigue en pruebas, sin login, emparejamiento ni controles confirmados.
