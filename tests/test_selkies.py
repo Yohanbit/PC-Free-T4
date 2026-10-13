@@ -252,6 +252,8 @@ class SelkiesTests(unittest.TestCase):
         self.assertIn('--enable-basic-auth=true', source)
         self.assertIn("'--protocol', 'http2'", source)
         self.assertIn("server_env.pop('LD_PRELOAD', None)", source)
+        self.assertIn("server_env['LD_PRELOAD'] = shm_perms", source)
+        self.assertIn('shm_perms = shm_perms_library()', source)
         self.assertIn("'--backpressure-queue-size=2'", source)
         self.assertIn("'--encoder=h264enc'", source)
         self.assertNotIn("'-ac'", source)
