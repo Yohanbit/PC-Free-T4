@@ -10,20 +10,20 @@ Perfil gaming: 720p/60 FPS objetivo, Turbo, H.264/NVENC cuando está disponible 
 
 ## Abrir la versión vigente en Colab
 
-Abre el cuaderno directamente desde la rama main del repositorio:
+Abre el cuaderno directamente desde la rama `main` del repositorio:
 
 - [Cuaderno principal](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4.ipynb)
 - [Inicio rápido](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4-Rapido.ipynb)
 
-Un cuaderno que ya estaba abierto o que se guardó en Drive es una copia y no se actualiza cuando cambia GitHub. Cierra esa pestaña y abre uno de los enlaces anteriores; comprueba que la dirección contiene /github/Yohanbit/PC-Free-T4/blob/main/. Para probar cambios desde cero, guarda primero cualquier archivo que necesites y luego desconecta/elimina el entorno de ejecución anterior antes de ejecutar todo en una VM nueva. Esto borra el disco temporal y la salida de esa VM. Usa escritorio remoto únicamente en un entorno donde el proveedor lo permita; Google restringe los escritorios remotos en Colab administrado gratuito cuando no hay saldo positivo de unidades de cómputo ([política de Colab](https://research.google.com/colaboratory/faq.html#disallowed-activities)).
+Un cuaderno que ya estaba abierto o que se guardó en Drive es una copia y no se actualiza cuando cambia GitHub. Cierra esa pestaña y abre uno de los enlaces anteriores; comprueba que la dirección contiene `/github/Yohanbit/PC-Free-T4/blob/main/`. Para probar cambios desde cero, guarda primero cualquier archivo que necesites y luego desconecta/elimina el entorno de ejecución anterior antes de ejecutar todo en una VM nueva. Esto borra el disco temporal y la salida de esa VM. Usa escritorio remoto únicamente en un entorno donde el proveedor lo permita; Google restringe los escritorios remotos en Colab administrado gratuito cuando no hay saldo positivo de unidades de cómputo ([política de Colab](https://research.google.com/colaboratory/faq.html#disallowed-activities)).
 
 ## Validación manual del primer inicio de Steam (pendiente)
 
-Steam ya tiene una celda opcional en ambos cuadernos: INSTALL_STEAM = False y STEAM_GAMEPADS = False. En un entorno permitido y compatible, inicia el escritorio, conecta la sesión, cambia solo INSTALL_STEAM a True y ejecuta esa celda. La celda instala el cliente oficial, pero no lo abre; inicia Steam manualmente desde el menú de aplicaciones. Mantén mandos desactivados durante la primera prueba.
+Steam ya tiene una celda opcional en ambos cuadernos: `INSTALL_STEAM = False` y `STEAM_GAMEPADS = False`. En un entorno permitido y compatible, inicia el escritorio, conecta la sesión, cambia solo `INSTALL_STEAM` a `True` y ejecuta esa celda. La celda instala el cliente oficial, pero no lo abre; inicia Steam manualmente desde el menú de aplicaciones. Mantén mandos desactivados durante la primera prueba.
 
-Registra si aparece la ventana de login, si se mantiene abierta, qué ocurre al intentar iniciar sesión y cuánto tarda en cerrarse o fallar. Para diagnosticar, conserva el registro de instalación ~/.local/share/pcfree/steam/install.log y, si existen, los registros de Steam bajo ~/.local/share/Steam/logs/. Comparte solo fragmentos saneados: elimina nombres de usuario, correo, códigos, cookies, tokens y cualquier dato de la cuenta. No compartas la salida del cuaderno si contiene credenciales de acceso al escritorio.
+Registra si aparece la ventana de login, si se mantiene abierta, qué ocurre al intentar iniciar sesión y cuánto tarda en cerrarse o fallar. Para diagnosticar, conserva el registro de instalación `~/.local/share/pcfree/steam/install.log` y, si existen, los registros de Steam bajo `~/.local/share/Steam/logs/`. Comparte solo fragmentos saneados: elimina nombres de usuario, correo, códigos, cookies, tokens y cualquier dato de la cuenta. No compartas la salida del cuaderno si contiene credenciales de acceso al escritorio.
 
-El instalador informa login_validated: false: instalar Steam no demuestra que el login funcione. No activar inicio automático, no desactivar el sandbox ni añadir opciones de CEF como prueba a ciegas; cualquier cambio de compatibilidad debe basarse en el resultado y los registros de una ejecución permitida.
+El instalador informa `login_validated: false`:  instalar Steam no demuestra que el login funcione. No activar inicio automático, no desactivar el sandbox ni añadir opciones de CEF como prueba a ciegas; cualquier cambio de compatibilidad debe basarse en el resultado y los registros de una ejecución permitida.
 
 ## Estado local
 
