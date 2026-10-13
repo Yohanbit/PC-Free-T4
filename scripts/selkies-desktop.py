@@ -321,6 +321,35 @@ def vulkan_icd(root):
     destination.chmod(0o644)  # Not secret; the unprivileged Vulkan loader reads it.
     return str(destination)
 
+SHM_PERMS_SOURCE = r'''#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+/* Colab containers: Xorg cannot read SO_PEERCRED of the capture client, so MIT-SHM
+   only attaches world-accessible segments (else BadAccess, X11 error 10). */
+int shmget(key_t key, size_t size, int flags) {
+    static int (*real)(key_t, size_t, int);
+    if (!real) real = (int (*)(key_t, size_t, int))dlsym(RTLD_NEXT, "shmget");
+    if (flags & IPC_CREAT) flags |= 0666;
+    return real(key, size, flags);
+}
+'''
+
+
+def shm_perms_library():
+    """Build shm-perms.so on every fresh VM; never trust a leftover file."""
+    library = BASE / 'shm-perms.so'
+    source = BASE / 'shm-perms.c'
+    source.write_text(SHM_PERMS_SOURCE)
+    if not shutil.which('gcc'):
+        safe_apt_install(['gcc', 'libc6-dev'])
+    library.unlink(missing_ok=True)
+    logged(['gcc', '-shared', '-fPIC', '-O2', '-o', str(library), str(source), '-ldl'])
+    library.chmod(0o755)
+    if 'shmget' not in capture(['nm', '-D', '--defined-only', str(library)]):
+        raise RuntimeError('shm-perms.so no exporta shmget; XShm no quedaría corregido.')
+    return str(library)
+
 
 def as_user(argv):
     return ['runuser', '-u', USER, '--', *argv]
@@ -615,6 +644,7 @@ def bootstrap(firefox=True, framerate=60, bitrate=5000):
             python.unlink(); python.symlink_to('/usr/bin/python3.12')
             capture(['/opt/selkies/bin/selkies', '--help'])
             web_root = prepare_web_client()
+            shm_perms = shm_perms_library()
             tunnel = BASE / 'cloudflared'; download(CLOUDFLARED_URL, tunnel); tunnel.chmod(0o755)
         with phase('Bibliotecas 3D exactas, aisladas del kernel'):
             root, libraries = graphics(driver)
@@ -723,12 +753,17 @@ EndSection
                               SELKIES_USE_CPU='false|locked', SELKIES_AUTO_GPU='nvidia',
                               SELKIES_RATE_CONTROL_MODE='cbr')
             server_env.pop('LD_PRELOAD', None)
+            # Only the capture server gets the XShm permission shim.
+            server_env['LD_PRELOAD'] = shm_perms
             server = spawn(['/opt/selkies/bin/selkies', '--addr=127.0.0.1', f'--port={PORT}',
                             '--web-root=' + web_root,
                             '--mode=websockets', '--enable-basic-auth=true', '--enable-https=false',
                             '--encoder=h264enc', f'--framerate={framerate}', f'--video-bitrate={bitrate}',
                             '--enable-resize=false', '--backpressure-queue-size=2'], 'selkies', server_env, processes)
             wait_for(lambda: auth_ready(access['username'], access['password']), 'Selkies + autenticación', [server], 60)
+            selkies_log = (BASE / 'selkies.log').read_text(errors='replace')
+            if re.search(r'X11 Access error|BadAccess|XShm.*(fail|error)', selkies_log, re.I):
+                raise RuntimeError('Selkies no puede capturar la pantalla (XShm/X11); revisar selkies.log.')
             cloud = spawn([str(tunnel), 'tunnel', '--url', f'http://127.0.0.1:{PORT}',
                            '--protocol', 'http2', '--no-autoupdate'], 'cloudflared', env, processes)
             def tunnel_ready():
