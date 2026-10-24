@@ -19,6 +19,7 @@ Pasos para iniciar el entorno virtual:
 - Entorno de escritorio XFCE en Ubuntu con aceleración por hardware GPU Tesla T4.
 - Transmisión de baja latencia con Selkies (NVENC H.264, WebSockets y túnel Cloudflare HTTP/2).
 - Audio estable a 48 kHz con ganancias independientes y 30 fragmentos de cola, para evitar cortes con volumen medio/alto.
+- Decodificación WebCodecs en el navegador y captura NvFBC zero-copy cuando el driver la permite, con DRI3/XShm como respaldo.
 - Tasa de cuadros y calidad de video configurables para transmisión fluida.
 - Soporte opcional para Steam, Heroic Games Launcher, Proton, Vulkan y utilidades del sistema.
 - Navegador Firefox con aceleración WebGL y WebGPU.
