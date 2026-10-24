@@ -12,11 +12,13 @@ for path in root.glob('*.ipynb'):
         if cell['cell_type']=='code':
             assert cell['outputs']==[] and cell['execution_count'] is None
             ast.parse(''.join(cell['source']))
-desktop=json.loads((root/'PC-Free-T4.ipynb').read_text())
-runner=ast.parse(''.join(desktop['cells'][1]['source']))
-embedded=ast.literal_eval(runner.body[0].value)
+desktop=json.loads((root/'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+cell2_code=''.join(desktop['cells'][2]['source'])
+ns={}
+exec(compile(cell2_code,'cell2','exec'),ns)
+embedded=ns.get('SOURCES',{})
 for name,source in embedded.items():
-    assert source==(root/'scripts'/name).read_text(), 'Cuaderno desactualizado: '+name
+    assert source==(root/'scripts'/name).read_text(encoding='utf-8'), 'Cuaderno desactualizado: '+name
 assert 'selkies-desktop.py' in embedded and 'compat-steam.py' in embedded and 'compat-apps.py' in embedded
 assert '.Xauthority' in embedded['selkies-desktop.py'] and "'-ac'" not in embedded['selkies-desktop.py']
 assert 'matching_version' in embedded['selkies-desktop.py']

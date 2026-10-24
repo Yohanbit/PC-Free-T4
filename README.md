@@ -1,35 +1,27 @@
 # PC-Free-T4
 
-Escritorio Ubuntu con NVIDIA Tesla T4, XFCE y acceso desde Chrome mediante Selkies.
+Escritorio Ubuntu en Google Colab con GPU NVIDIA Tesla T4, entorno gráfico XFCE y transmisión mediante Selkies.
 
-## Iniciar
+## Acceso a la VM
 
 [![Abrir en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4.ipynb)
 
-1. Abrir el cuaderno.
-2. **Entorno de ejecución → Cambiar tipo de entorno → GPU T4 → Guardar.**
-3. **Entorno de ejecución → Ejecutar todo.** Usar una VM nueva.
-4. Esperar a que Colab muestre **URL, usuario y contraseña**.
-5. Abrir esa URL en Chrome, introducir las credenciales y pulsar **Jugar**. Aceptar los permisos de pantalla completa y controles.
+Pasos para iniciar el entorno virtual:
 
-[Inicio rápido](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4-Rapido.ipynb) · [Respaldos manuales](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/Drive-Backups.ipynb)
+1. Abrir la libreta en Google Colab mediante el enlace anterior.
+2. Configurar el entorno con GPU: **Entorno de ejecución → Cambiar tipo de entorno de ejecución → GPU T4 → Guardar**.
+3. Ejecutar la libreta: **Entorno de ejecución → Ejecutar todo**.
+4. Esperar a que la celda de inicio genere la URL del túnel junto con el usuario y la contraseña.
+5. Abrir la URL en un navegador, ingresar las credenciales presentadas y seleccionar el botón de inicio de transmisión.
 
-## Perfil incluido
+## Características
 
-- **720p, 60 FPS objetivo, H.264/NVENC, Turbo y CBR 5 Mbps.** FPS/bitrate ajustables; 60 FPS no garantizados.
-- OpenGL/Vulkan y EGL NVIDIA con bibliotecas de la versión exacta del controlador.
-- Firefox con WebRender/WebGL y perfil independiente. Descarga en segundo plano, sin abrir ventanas.
-- Archivos, Descargas, Terminal y audio preparados.
-- Protección del clic derecho sobre la transmisión. Gaming Mode solicita ratón relativo y bloqueo de teclado.
-- Preparación de **Flatpak/Sober** en segundo plano. Comprueba SSE4.1, kernel y sandbox antes de descargar runtimes.
-
-
-**Android:** si el sistema convierte el clic derecho en Atrás, cambiar la asignación del ratón a clic derecho/menú contextual, si existe. La web no puede interceptar eventos que Android consume. Las teclas reservadas como Win/Alt+Tab tampoco están garantizadas.
-
-
-[Compatibilidad y controles](COMPATIBILIDAD.md) · [Diagnóstico](CONTINUAR.md) · [Cambios](CHANGELOG.md)
+- Entorno de escritorio XFCE en Ubuntu con aceleración por hardware GPU Tesla T4.
+- Transmisión de baja latencia con Selkies (NVENC H.264, WebSockets y túnel Cloudflare HTTP/2).
+- Tasa de cuadros y calidad de video configurables para transmisión fluida.
+- Soporte opcional para Steam, Heroic Games Launcher, Proton, Vulkan y utilidades del sistema.
+- Navegador Firefox con aceleración WebGL y WebGPU.
 
 ## Notas
 
-Las credenciales y el disco son temporales. No guardar salidas del cuaderno ni compartir el acceso. Exportar archivos antes de cerrar la VM.
-
+Las credenciales y el almacenamiento de la sesión son temporales y se reinician al cerrar la máquina virtual. Guardar los archivos necesarios externamente antes de finalizar la sesión.

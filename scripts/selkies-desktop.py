@@ -128,14 +128,30 @@ def preflight():
         raise RuntimeError('Desmontar Drive antes de preparar el escritorio.')
     if shutil.disk_usage('/tmp').free < 8 * 1024**3:
         raise RuntimeError('Se requieren al menos 8 GiB libres; los juegos necesitan más.')
-    gpu = capture(['nvidia-smi', '--query-gpu=name,driver_version,pci.bus_id', '--format=csv,noheader']).strip().splitlines()
-    if len(gpu) != 1:
-        raise RuntimeError('Esta receta requiere una sola GPU Tesla T4.')
-    name, driver, bus = (value.strip() for value in gpu[0].split(','))
-    if 'T4' not in name or not re.fullmatch(r'\d+\.\d+(?:\.\d+)?', driver):
+    gpu_rows = [row.strip() for row in capture(
+        ['nvidia-smi', '--query-gpu=name,driver_version,pci.bus_id', '--format=csv,noheader']
+    ).splitlines() if row.strip()]
+    # Un runtime puede exponer más de una T4. El escritorio necesita una GPU concreta;
+    # se selecciona la primera T4 de nvidia-smi para el BusID de Xorg/Selkies.
+    t4_rows = [row for row in gpu_rows if 'T4' in row.split(',', 1)[0]]
+    if not t4_rows:
+        raise RuntimeError('Se requiere al menos una GPU NVIDIA Tesla T4 visible por nvidia-smi.')
+    name, driver, bus = (value.strip() for value in t4_rows[0].split(',', 2))
+    if not re.fullmatch(r'\d+\.\d+(?:\.\d+)?', driver):
         raise RuntimeError('GPU/versión NVIDIA no compatible.')
+    if len(t4_rows) > 1:
+        print(f'Detectadas {len(t4_rows)} Tesla T4; Xorg/Selkies usará solo la primera: {name} ({bus}).', flush=True)
+        print('Las GPU no se combinan: la segunda no duplica los FPS de un juego.', flush=True)
     if Path('/tmp/.X11-unix/X98').exists() or Path('/tmp/.X98-lock').exists():
         raise RuntimeError('Ya existe Xorg :98. No se reinicia ni se reinstala la sesión activa.')
+    # Colab asigna vCPU/RAM al runtime; la receta no limita la afinidad de CPU.
+    try:
+        cpu_count = os.cpu_count() or 0
+        mem_kib = next((int(line.split()[1]) for line in Path('/proc/meminfo').read_text().splitlines()
+                        if line.startswith('MemTotal:')), 0)
+        print(f'Recursos visibles: {cpu_count} CPU lógicas | RAM {mem_kib / 1024**2:.1f} GiB', flush=True)
+    except Exception as exc:
+        print(f'Aviso: no se pudieron leer todos los recursos CPU/RAM: {exc}', flush=True)
     print(f'GPU: {name} | controlador del kernel: {driver}', flush=True)
     return driver, bus
 
@@ -241,9 +257,30 @@ def graphics(driver):
     libraries = sorted({str(path.parent) for path in root.rglob('*.so*') if path.is_file()})
     if not libraries or not list(root.rglob('nvidia_drv.so')):
         raise RuntimeError('Paquetes NVIDIA incompletos; revisar nvidia-download.log.')
-    actual = capture(['nvidia-smi', '--query-gpu=driver_version', '--format=csv,noheader']).strip()
-    if actual != driver:
-        raise RuntimeError('El controlador del kernel cambió durante la preparación.')
+    # `nvidia-smi --query-gpu=driver_version` imprime una línea por GPU.
+    # En un runtime multi-GPU, comparar todo el texto con una sola versión causa un falso
+    # positivo aunque el controlador siga igual: las dos líneas repiten la versión.
+    # Valida de nuevo cada T4 visible sin instalar ni cambiar el controlador del kernel.
+    actual_output = capture([
+        'nvidia-smi', '--query-gpu=name,driver_version', '--format=csv,noheader'
+    ]).strip()
+    actual_t4_versions = []
+    for line in actual_output.splitlines():
+        if not line.strip():
+            continue
+        parts = [part.strip() for part in line.split(',', 1)]
+        if len(parts) == 2 and 'T4' in parts[0]:
+            actual_t4_versions.append(parts[1])
+    if not actual_t4_versions or any(version != driver for version in actual_t4_versions):
+        observed = ', '.join(actual_t4_versions) if actual_t4_versions else 'ninguna T4 visible'
+        raise RuntimeError(
+            f'La versión del controlador NVIDIA no coincide: esperada {driver}; '
+            f'detectada en T4: {observed}. No se instaló ningún controlador del kernel.'
+        )
+    print(
+        f'Controlador verificado en {len(actual_t4_versions)} T4(s): {driver}; '
+        'las bibliotecas de usuario permanecen aisladas del kernel.', flush=True
+    )
     return root, ':'.join(libraries)
 
 
@@ -303,18 +340,21 @@ def prepare_user(root, libraries):
 
 
 def vulkan_icd(root):
-    """Rewrite the official isolated NVIDIA ICD to its absolute extracted library.
+    """Create a private NVIDIA ICD manifest without changing system-wide Vulkan config.
 
-    Do not register it in /usr/share, where it could affect the managed host.
-    Keep the official API version and other fields; no guessed Vulkan version.
+    In this runtime, a direct probe found the NVIDIA EGL library exposed the T4,
+    while the GLX library path failed ICD entry-point loading. Prefer EGL when present;
+    keep the driver-provided api_version and all other manifest fields unchanged.
     """
     candidates = list(root.rglob('nvidia_icd.json'))
     if len(candidates) != 1:
         raise RuntimeError('ICD Vulkan NVIDIA oficial no encontrado o ambiguo.')
     document = json.loads(candidates[0].read_text())
-    library = root / 'usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.0'
+    egl_library = root / 'usr/lib/x86_64-linux-gnu/libEGL_nvidia.so.0'
+    glx_library = root / 'usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.0'
+    library = egl_library if egl_library.is_file() else glx_library
     if not library.is_file() or not document.get('ICD', {}).get('api_version'):
-        raise RuntimeError('ICD/biblioteca Vulkan NVIDIA incompletos.')
+        raise RuntimeError('ICD/biblioteca NVIDIA incompletos: EGL y GLX no encontrados.')
     document['ICD']['library_path'] = str(library)
     destination = BASE / 'nvidia-vulkan64.json'
     destination.write_text(json.dumps(document, indent=2) + '\n')
@@ -533,7 +573,11 @@ def show_access():
     state = BASE / 'session.json'
     settings = json.loads(state.read_text()).get('settings', {}) if state.exists() else {}
     fps, kbps = settings.get('framerate', 30), settings.get('bitrate', 2000)
-    print(f'720p · H.264 · {fps} fps · {kbps} kbps iniciales. Ajustar según red; latencia no garantizada.')
+    resolution = settings.get('resolution', '960x540')
+    encoder = settings.get('encoder', 'h264enc')
+    cpu_encode = str(settings.get('use_cpu', False)).lower()
+    queue_size = settings.get('backpressure_queue_size', 1)
+    print(f'{resolution} · {encoder} · use-cpu={cpu_encode} · cola={queue_size} · {fps} FPS · {kbps} kbps CBR; NVENC se confirma en TX · Diagnóstico.')
     firefox = 'descarga en segundo plano' if settings.get('firefox', True) else 'desactivado'
     print(f'Registros: {BASE} | Firefox: {firefox}, sin abrir ventanas.')
 
@@ -612,9 +656,83 @@ def prepare_web_client(source=None):
     return str(target)
 
 
-def bootstrap(firefox=True, framerate=60, bitrate=5000):
-    if not isinstance(framerate, int) or not 1 <= framerate <= 60 or not isinstance(bitrate, int) or not 500 <= bitrate <= 20000:
-        raise ValueError('FPS: 1–60; bitrate: 500–20000 kbps.')
+def install_pixelflux_libxcb_guard(python):
+    """Install the official Pixelflux build with the NvFBC/libxcb ABI guard."""
+    tag = '59c523a'
+    api = f'https://api.github.com/repos/selkies-project/pixelflux/releases/tags/{tag}'
+    request = urllib.request.Request(
+        api,
+        headers={
+            'Accept': 'application/vnd.github+json',
+            'User-Agent': 'PC-Free-T4',
+            'X-GitHub-Api-Version': '2022-11-28',
+        },
+    )
+    print(f'Pixelflux: consultando el release oficial fijado {tag}…', flush=True)
+    try:
+        with urllib.request.urlopen(request, timeout=40) as response:
+            release = json.load(response)
+    except Exception as exc:
+        raise RuntimeError(
+            f'No se pudo consultar el release oficial de Pixelflux {tag}: {exc}. '
+            'No se iniciará Selkies con el módulo vulnerable.'
+        ) from exc
+    if release.get('tag_name') != tag:
+        raise RuntimeError(f'Release de Pixelflux inesperado: {release.get("tag_name")!r}.')
+    assets = release.get('assets', [])
+    suffix = '-cp312-cp312-manylinux_2_28_x86_64.whl'
+    candidates = [
+        asset for asset in assets
+        if asset.get('name', '').startswith('pixelflux-')
+        and asset.get('name', '').endswith(suffix)
+        and not any(token in asset.get('name', '').lower()
+                    for token in ('nogpl', 'no-gpl', 'openh264', 'kvazaar'))
+    ]
+    if len(candidates) != 1:
+        names = [a.get('name', '') for a in assets if a.get('name', '').endswith(suffix)]
+        raise RuntimeError(
+            'No se pudo seleccionar de forma unívoca el wheel GPL de Pixelflux '
+            f'para CPython 3.12/x86_64. Coincidencias: {names!r}. '
+            'No se iniciará Selkies con el módulo vulnerable.'
+        )
+    asset = candidates[0]
+    wheel = BASE / asset['name']
+    download(asset['browser_download_url'], wheel)
+    digest = asset.get('digest') or ''
+    if digest.startswith('sha256:'):
+        actual = __import__('hashlib').sha256(wheel.read_bytes()).hexdigest()
+        if actual.lower() != digest.split(':', 1)[1].lower():
+            wheel.unlink(missing_ok=True)
+            raise RuntimeError('El SHA-256 del wheel de Pixelflux no coincide con GitHub Releases.')
+    print(f'Pixelflux: instalando el wheel oficial {asset["name"]}…', flush=True)
+    logged([
+        str(python), '-m', 'pip', 'install', '--disable-pip-version-check',
+        '--no-deps', '--force-reinstall', str(wheel)
+    ], 'pixelflux-libxcb-fix', timeout=240)
+    result = capture([
+        str(python), '-c',
+        'import importlib.metadata as m, pixelflux; '
+        'print("pixelflux version:", m.version("pixelflux")); '
+        'print("module:", pixelflux.__file__); '
+        'print("software encoders:", pixelflux.SOFTWARE_ENCODERS)'
+    ], timeout=30)
+    if '/opt/selkies/lib/python3.12/site-packages/pixelflux' not in result:
+        raise RuntimeError('Pixelflux actualizado, pero Python no está importando el módulo de /opt/selkies.\n' + result)
+    (BASE / 'pixelflux-libxcb-fix.log').write_text(
+        f'Upstream release: {tag}\nWheel: {asset["name"]}\n{result}\n'
+    )
+    print('Pixelflux: importación verificada. NvFBC ahora puede detectar la copia de libxcb y declinarla de forma segura si no coincide.', flush=True)
+
+
+def bootstrap(firefox=True, framerate=60, bitrate=3000, width=960, height=540, backpressure_queue_size=1):
+    if (
+        not isinstance(framerate, int) or not 1 <= framerate <= 60
+        or not isinstance(bitrate, int) or not 500 <= bitrate <= 20000
+        or not isinstance(width, int) or not 320 <= width <= 3840
+        or not isinstance(height, int) or not 240 <= height <= 2160
+        or not isinstance(backpressure_queue_size, int) or not 1 <= backpressure_queue_size <= 8
+    ):
+        raise ValueError('FPS: 1–60; bitrate: 500–20000 kbps; resolución: 320–3840 × 240–2160; cola: 1–8.')
     BASE.mkdir(mode=0o755, exist_ok=True)
     with (BASE / 'bootstrap.lock').open('w') as lock:
         try:
@@ -642,6 +760,7 @@ def bootstrap(firefox=True, framerate=60, bitrate=5000):
             if not python.is_symlink():
                 raise RuntimeError('Python privado Selkies inesperado; no modificar Python del sistema.')
             python.unlink(); python.symlink_to('/usr/bin/python3.12')
+            install_pixelflux_libxcb_guard(python)
             capture(['/opt/selkies/bin/selkies', '--help'])
             web_root = prepare_web_client()
             shm_perms = shm_perms_library()
@@ -662,7 +781,13 @@ def bootstrap(firefox=True, framerate=60, bitrate=5000):
             for mapping in (env, session['env']):
                 mapping['__EGL_VENDOR_LIBRARY_FILENAMES'] = str(egl)
             session['driver_version'] = driver
-            session['settings'] = {'framerate': framerate, 'bitrate': bitrate, 'firefox': firefox}
+            session['settings'] = {
+                'framerate': framerate, 'bitrate': bitrate, 'firefox': firefox,
+                'width': width, 'height': height, 'resolution': f'{width}x{height}',
+                'encoder': 'h264enc', 'use_cpu': False,
+                'backpressure_queue_size': backpressure_queue_size,
+                'rate_control_mode': 'cbr',
+            }
             desktop_files(session)
         # Mark setup BEFORE launching, so failures never cause a destructive rerun.
         session['processes'] = {}
@@ -688,10 +813,10 @@ Section "Screen"
  DefaultDepth 24
  SubSection "Display"
   Depth 24
-  Virtual 1280 720
+  Virtual SCREEN_WIDTH SCREEN_HEIGHT
  EndSubSection
 EndSection
-'''.replace('BUSID', busid))
+'''.replace('BUSID', busid).replace('SCREEN_WIDTH', str(width)).replace('SCREEN_HEIGHT', str(height)))
             module = next(root.rglob('nvidia_drv.so')).parent.parent
             xorg = spawn(['/usr/lib/xorg/Xorg', DISPLAY, '-config', str(config), '-modulepath',
                           f'{module},/usr/lib/xorg/modules', '-logfile', str(BASE / 'Xorg.log'),
@@ -705,11 +830,20 @@ EndSection
             (BASE / 'opengl.log').write_text(renderer)
             if 'NVIDIA' not in renderer or 'T4' not in renderer:
                 raise RuntimeError('OpenGL T4 no confirmado; revisar Xorg.log.')
-            vulkan = capture(as_user(['vulkaninfo', '--summary']), env=env, timeout=30)
+            # Vulkan is optional for desktop availability: a Vulkan loader/WSI failure must not
+            # prevent the known-good NVIDIA OpenGL + Steam + Selkies path from starting.
+            try:
+                vulkan = capture(as_user(['vulkaninfo', '--summary']), env=env, timeout=30)
+                vulkan_rc = 0
+            except Exception as exc:
+                vulkan = f'vulkaninfo no pudo completar: {type(exc).__name__}: {exc}\n'
+                vulkan_rc = 1
             (BASE / 'vulkan.log').write_text(vulkan)
-            if not re.search(r'deviceName\s*=\s*[^\n]*T4', vulkan):
-                raise RuntimeError('Vulkan64 T4 no confirmado; revisar vulkan.log e ICD aislado.')
-            session['graphics'] = {'opengl_nvidia_t4': True, 'vulkan_nvidia_t4': True,
+            vulkan_ok = vulkan_rc == 0 and bool(re.search(r'deviceName\s*=\s*[^\n]*T4', vulkan))
+            if not vulkan_ok:
+                print('AVISO: Vulkan no confirmado; se conserva OpenGL y continúa el escritorio. Revisar /tmp/pcfree-selkies/vulkan.log.', flush=True)
+            session['graphics'] = {'opengl_nvidia_t4': True, 'vulkan_nvidia_t4': vulkan_ok,
+                'vulkan_log': str(BASE / 'vulkan.log'),
                 'gles_profile': next((line.strip() for line in renderer.splitlines()
                                       if 'OpenGL ES profile version string' in line), 'No informado por glxinfo')}
             audio_env = dict(env); audio_env.pop('PULSE_SERVER', None)
@@ -752,14 +886,24 @@ EndSection
                               SELKIES_VIDEO_STREAMING_MODE='true|locked',
                               SELKIES_USE_CPU='false|locked', SELKIES_AUTO_GPU='nvidia',
                               SELKIES_RATE_CONTROL_MODE='cbr')
+            # NVENC FIX (Google Colab Tesla T4): SOLO afecta al proceso de Selkies.
+            # Conserva LD_LIBRARY_PATH y añade las bibliotecas NVIDIA del runtime.
+            # No modifica Steam, Xorg ni Cloudflare.
+            server_env['LD_LIBRARY_PATH'] = ':'.join(
+                p for p in (
+                    server_env.get('LD_LIBRARY_PATH', ''),
+                    '/usr/lib64-nvidia'
+                ) if p
+            )
+
+            # PATCH 2/2: keep the stable XShm permissions shim; revert experimental system libxcb preload.
             server_env.pop('LD_PRELOAD', None)
-            # Only the capture server gets the XShm permission shim.
             server_env['LD_PRELOAD'] = shm_perms
             server = spawn(['/opt/selkies/bin/selkies', '--addr=127.0.0.1', f'--port={PORT}',
                             '--web-root=' + web_root,
                             '--mode=websockets', '--enable-basic-auth=true', '--enable-https=false',
-                            '--encoder=h264enc', f'--framerate={framerate}', f'--video-bitrate={bitrate}',
-                            '--enable-resize=false', '--backpressure-queue-size=2'], 'selkies', server_env, processes)
+                            '--encoder=h264enc', '--use-cpu=false', f'--framerate={framerate}', f'--video-bitrate={bitrate}',
+                            '--enable-resize=false', f'--backpressure-queue-size={backpressure_queue_size}'], 'selkies', server_env, processes)
             wait_for(lambda: auth_ready(access['username'], access['password']), 'Selkies + autenticación', [server], 60)
             selkies_log = (BASE / 'selkies.log').read_text(errors='replace')
             if re.search(r'X11 Access error|BadAccess|XShm.*(fail|error)', selkies_log, re.I):
