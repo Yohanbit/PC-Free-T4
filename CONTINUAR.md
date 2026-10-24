@@ -40,6 +40,7 @@ Vulkan de 64 bits se verifica durante el arranque. Steam configura su propio ICD
 - Ejecución real de Blender, Godot, Vinegar/Studio y Sober/Roblox.
 - Restauración jugable de mundos y autorización individual de Drive.
 - Audio medio/alto sostenido sin cortes en clientes Android y de escritorio con el perfil de 48 kHz.
+- NvFBC y `VideoDecoder` confirmados en un cliente real; NvFBC puede declinar según driver o licencia.
 
 La sesión de desarrollo confirmó Selkies desde Android, NVENC H.264, OpenGL 4.6 y Vulkan 1.4 en la T4. Se reinstaló Steam oficial y se compilaron las bibliotecas de mandos de 32/64 bits. No extrapolar estas pruebas a login, controles o ejecución de todos los programas.
 
