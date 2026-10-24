@@ -2,7 +2,7 @@
 
 ## Arranque
 
-Usar los cuadernos autocontenidos publicados en `main`. El cuaderno principal incluye respaldo manual; el inicio rápido contiene el mismo arranque y los mismos opcionales. No ejecutar el instalador sobre otro Xorg activo.
+Usar el cuaderno autocontenido publicado en `main` (`PC-Free-T4.ipynb`). Contiene el arranque y los opcionales. Esta versión no incluye celdas de respaldo: los mundos se exportan y restauran fuera de la libreta (ver `PERSONAL-DRIVE.md`). No ejecutar el instalador sobre otro Xorg activo.
 
 La configuración exige Ubuntu 24.04 amd64, una T4 y paquetes NVIDIA cuya versión upstream coincida exactamente con el controlador activo. Se usan los repositorios oficiales Ubuntu y NVIDIA CUDA para Ubuntu 24.04. Las bibliotecas se extraen sin instalar módulos, DKMS o controladores del kernel.
 
@@ -44,6 +44,6 @@ La sesión de desarrollo confirmó Selkies desde Android, NVENC H.264, OpenGL 4.
 
 ## Mantenimiento
 
-Editar fuentes, regenerar los cuadernos y ejecutar las pruebas locales antes de publicar. Mantener salidas y contadores de ejecución vacíos. Nunca versionar enlaces actuales de túnel, credenciales, perfiles de aplicaciones ni partidas.
+Editar fuentes, sincronizar `scripts/` desde la libreta (`tools/build-notebooks.py`) y ejecutar las pruebas locales antes de publicar. Mantener salidas y contadores de ejecución vacíos. Nunca versionar enlaces actuales de túnel, credenciales, perfiles de aplicaciones ni partidas.
 
 Los límites y las políticas de Colab siguen aplicándose. No añadir anti-idle, recreación automática ni cambios destinados a evitar restricciones del proveedor.

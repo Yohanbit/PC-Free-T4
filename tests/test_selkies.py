@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('pcfree_selkies_test', ROOT / 'scripts/selkies-desktop.py')
@@ -253,6 +253,70 @@ class SelkiesTests(unittest.TestCase):
             self.assertEqual(namespace['official_ubuntu_uri'](uri), CORE.official_ubuntu_uri(uri))
         self.assertIn('ALLOWED', writes['/usr/local/sbin/pcfree-install-package'])
         self.assertNotIn('NOPASSWD: ALL', writes['/etc/sudoers.d/pcfree-packages'])
+
+    def test_preparation_cell_publishes_patched_core(self):
+        # Cell 3 must publish its patched source; otherwise bootstrap() recompiles
+        # the unpatched SOURCES and every [OK] printed by the cell is a lie.
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        env = {}
+        exec(compile(''.join(document['cells'][2]['source']), 'cell2', 'exec'), env)
+        original = env['SOURCES']['selkies-desktop.py']
+        preparation = ''.join(document['cells'][3]['source'])
+        exec(compile(preparation, 'preparation', 'exec'), env)
+        patched = env['SOURCES']['selkies-desktop.py']
+        self.assertNotEqual(patched, original)
+        compile(patched, 'patched-core', 'exec')
+        for marker in ('def add_i386_nvidia(', 'def desktop_launchers(',
+                       'Option "HardDPMS" "false"',
+                       'SELKIES_AUDIO_FRAME_DURATION_MS', 'pcfreeInputGuard = {version: 2'):
+            self.assertIn(marker, patched)
+        self.assertTrue(callable(env['_core'].get('bootstrap')))
+        tree = ast.parse(patched)
+        desktop_files = next(node for node in tree.body
+                             if isinstance(node, ast.FunctionDef) and node.name == 'desktop_files')
+        self.assertTrue(any(isinstance(node, ast.Call)
+                            and getattr(node.func, 'id', None) == 'desktop_launchers'
+                            for node in ast.walk(desktop_files)))
+        # Re-running the preparation must not duplicate patches nor drop the core.
+        exec(compile(preparation, 'preparation-again', 'exec'), env)
+        self.assertEqual(env['SOURCES']['selkies-desktop.py'], patched)
+        self.assertTrue(callable(env['_core'].get('bootstrap')))
+
+        # The injected helpers must be runnable, not just parseable.
+        core = env['_core']
+        writes = {}
+        class NoThread:
+            def __init__(self, *args, **kwargs):
+                pass
+            def start(self):
+                pass
+        session = {'home': '/fictional', 'user': 'pcfree-browser',
+                   'run_launcher': '/usr/local/bin/pcfree-run'}
+        shortcuts = []
+        with patch.object(Path, 'write_text', lambda self, text, **kw: writes.__setitem__(str(self), text)), \
+             patch.object(Path, 'chmod'), \
+             patch.dict(core, {'logged': lambda *a, **k: None,
+                               'safe_apt_install': lambda *a, **k: None,
+                               'shortcut': lambda *a, **k: shortcuts.append(a[1])}), \
+             patch.object(core['threading'], 'Thread', NoThread):
+            core['desktop_launchers'](session)
+        self.assertIn('pcfree-install-deb', ''.join(writes))
+        self.assertIn('#!/usr/bin/python3.12', writes['/usr/local/sbin/pcfree-install-deb'])
+        self.assertIn('NOPASSWD: /usr/local/sbin/pcfree-install-deb',
+                      writes['/etc/sudoers.d/pcfree-deb'])
+        self.assertEqual(shortcuts, ['Instalar-DEB', 'ProtonUp-Qt'])
+        with patch.dict(core, {'logged': Mock(side_effect=RuntimeError('apt no disponible'))}):
+            self.assertEqual(core['add_i386_nvidia']('580.82.07', '/fictional', '/libraries'),
+                             '/libraries')
+
+    def test_cleanup_cell_keeps_active_tunnel_and_apt_metadata(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        source = ''.join(document['cells'][5]['source'])
+        # Deleting the binary before checking pgrep would break the next start.
+        self.assertLess(source.index("'pgrep'"),
+                        source.index("clean(str(BASE / 'cloudflared')"))
+        for flag in ('if KEEP_APT_LISTS:', 'if REMOVE_DOCS:', 'if ALLOW_AUTOREMOVE:'):
+            self.assertIn(flag, source)
 
     def test_builder_deterministic_and_preserves_backup(self):
         target = ROOT / 'PC-Free-T4.ipynb'

@@ -1,5 +1,12 @@
 # Cambios
 
+## 2026-10-24 · preparación aplicada y limpieza conservadora
+- La celda de preparación publica el núcleo parcheado en `SOURCES` y lo recompila. Antes los parches se descartaban y el arranque usaba el código sin cambios, pese a imprimir `[OK]`.
+- Reejecutar la preparación ya no duplica parches: cada sustitución comprueba primero si ya está aplicada.
+- La limpieza ya no borra `cloudflared` con el túnel activo, conserva las listas de APT y la documentación, y deja `autoremove` desactivado por defecto.
+- Documentación alineada: sin referencias a cuadernos retirados; se aclara que esta versión no incluye celdas de respaldo de mundos.
+- Añadidas pruebas offline que ejecutan la celda de preparación y verifican publicación, idempotencia y compilación, además del orden seguro de la limpieza.
+
 ## 2026-10-12 · perfil gaming NVIDIA
 - Perfil predeterminado 720p/60 FPS objetivo, H.264 NVENC cuando está disponible, Turbo y CBR 5 Mbps. Selección GPU NVIDIA y preferencia de codificación CPU desactivada.
 - Firefox con perfil dedicado, WebRender/WebGL y EGL NVIDIA aislado. No modifica cuentas de otros perfiles ni desactiva sandbox.
