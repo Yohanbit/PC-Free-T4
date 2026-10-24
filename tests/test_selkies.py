@@ -263,6 +263,29 @@ class SelkiesTests(unittest.TestCase):
         self.assertNotIn('SIGTERM', source)
         self.assertNotIn('kill(', source)
 
+    def test_capture_cell_uses_only_real_settings(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        source = ''.join(document['cells'][10]['source'])
+        # Selkies 2.0 already decodes with WebCodecs; window.SELKIES_CONFIG does
+        # not exist and PIXELFLUX_NVENC_* profile/preset/bframes are not settings.
+        for forbidden in ('SELKIES_CONFIG', 'PIXELFLUX_NVENC_PROFILE', 'PIXELFLUX_NVENC_PRESET',
+                          'PIXELFLUX_NVENC_TUNING', 'PIXELFLUX_NVENC_RC_MODE',
+                          'PIXELFLUX_NVENC_BFRAMES', 'B-frames', 'Perfil Main'):
+            self.assertNotIn(forbidden, source)
+        for required in ('VideoDecoder', 'restore_libxcb', "'--video-min-qp'",
+                         "'--video-max-qp'", "'--audio-frame-duration-ms'",
+                         "'--audio-redundancy'", "'--keyframe-interval'"):
+            self.assertIn(required, source)
+        # The audio queue is inherited from the start cell and must not be reset.
+        self.assertNotIn('--backpressure-queue-size', source)
+        # No emoji or pictographic decoration in any cell.
+        for index, cell in enumerate(document['cells']):
+            for character in ''.join(cell['source']):
+                point = ord(character)
+                decorative = (point in (0xfe0f, 0x200d) or 0x1f000 <= point <= 0x1faff
+                              or 0x2600 <= point <= 0x27bf or 0x2b00 <= point <= 0x2bff)
+                self.assertFalse(decorative, f'emoji {character!r} en la celda {index}')
+
     def test_security_static(self):
         source = (ROOT / 'scripts/selkies-desktop.py').read_text()
         self.assertIn('--addr=127.0.0.1', source)

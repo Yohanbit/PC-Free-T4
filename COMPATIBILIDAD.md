@@ -35,6 +35,12 @@ El arranque escribe `~/.config/pulse/daemon.conf` (48 kHz, `s16le`, `flat-volume
 
 Estos ajustes se aplican al iniciar: una sesión anterior al cambio debe reiniciarse. La celda de audio verifica el perfil activo y solo ajusta en caliente el volumen (100 %) y el mute. No se ha medido todavía en todos los clientes ni con todas las cargas de audio. Si el corte aparece solo en un cliente, bajar el volumen del navegador o desactivar el audio en la barra lateral para distinguir el decodificador local del servidor.
 
+## Captura y decodificación
+
+Selkies 2.0 decodifica con WebCodecs sobre WebSockets y elige NvFBC automáticamente cuando el driver lo permite; no existe un interruptor de servidor para forzar ninguno de los dos. La celda de captura extrae `libnvidia-fbc.so.1` de la versión exacta del driver, unifica `libxcb` con el sistema (con rollback) y verifica que los assets servidos contienen `VideoDecoder`. Las variables `PIXELFLUX_NVENC_PROFILE`, `PRESET`, `TUNING`, `RC_MODE` y `BFRAMES` no existen y no se usan; el perfil y los B-frames no se configuran desde la libreta.
+
+NvFBC depende del driver y de que la GPU lo permita; si declina, pixelflux usa DRI3 o XShm y lo registra en el log. La decodificación por hardware se comprueba en el navegador (`chrome://gpu`, `about:support`); si el navegador no decodifica, el cliente usa la ruta de respaldo.
+
 No se instalan controladores del kernel ni se sustituye Python del sistema. Si APT no ofrece las bibliotecas NVIDIA exactas, el arranque se detiene con un diagnóstico. No hay un tiempo de inicio fijo: depende de la VM, APT y las descargas.
 
 ## Aplicaciones y juegos opcionales
