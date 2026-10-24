@@ -1,6 +1,9 @@
 """Offline unit/integration checks. No install, network, Colab or live processes."""
 import ast
+import contextlib
 import importlib.util
+import inspect
+import io
 import json
 import os
 from pathlib import Path
@@ -215,6 +218,51 @@ class SelkiesTests(unittest.TestCase):
                 self.assertEqual(env['SDL_JOYSTICK_DISABLE_UDEV'], '1')
                 self.assertIn('/dev/input/event1000', env['SDL_JOYSTICK_DEVICE'])
 
+    def test_audio_profile_stable_under_load(self):
+        conf = CORE.audio_daemon_conf()
+        for line in ('default-sample-rate = 48000', 'alternate-sample-rate = 48000',
+                     'default-sample-format = s16le', 'flat-volumes = no',
+                     'resample-method = speex-float-1',
+                     'default-fragments = 4', 'default-fragment-size-msec = 40'):
+            self.assertIn(line, conf)
+        self.assertIn('rate=48000', CORE.AUDIO_SINK_ARGS)
+        self.assertIn('format=s16le', CORE.AUDIO_SINK_ARGS)
+        self.assertIn('channels=2', CORE.AUDIO_SINK_ARGS)
+        # |locked is bool-only; enums take one value; int/float are plain numbers.
+        core_source = (ROOT / 'scripts/selkies-desktop.py').read_text()
+        for pair in ("SELKIES_AUDIO_BITRATE='96000'",
+                     "SELKIES_AUDIO_CHANNELS='2'",
+                     "SELKIES_AUDIO_FRAME_DURATION_MS='20'",
+                     "SELKIES_AUDIO_REDUNDANCY_DISTANCE='2'"):
+            self.assertIn(pair, core_source)
+        for invalid in ("AUDIO_FRAME_DURATION_MS='20|locked'", "AUDIO_BITRATE='96000|locked'",
+                        "AUDIO_CHANNELS='2-2'", "AUDIO_REDUNDANCY_DISTANCE='2-2'"):
+            self.assertNotIn(invalid, core_source)
+        # One queued chunk drops audio on the first hiccup; 30 absorbs NVENC bursts.
+        self.assertEqual(inspect.signature(CORE.bootstrap)
+                         .parameters['backpressure_queue_size'].default, 30)
+        with self.assertRaisesRegex(ValueError, 'cola: 1–120'):
+            CORE.bootstrap(backpressure_queue_size=121)
+
+    def test_spawn_lowers_audio_priority_before_dropping_privileges(self):
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(CORE, 'BASE', Path(folder)), \
+             patch.object(subprocess, 'Popen') as popen:
+            CORE.spawn(['pulseaudio', '--version'], 'pulse', {}, {}, nice=-10)
+            command = popen.call_args.args[0]
+            self.assertEqual(command[:5], ['nice', '-n', '-10', 'runuser', '-u'])
+            self.assertIn('pulseaudio', command)
+
+    def test_audio_cell_verifies_without_restarting_services(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        source = ''.join(document['cells'][9]['source'])
+        for token in ("audio_daemon_conf", "flat-volumes = no", "get-sink-volume",
+                      "Default Sample Specification", "SELKIES_AUDIO_BITRATE",
+                      "no reinicia"):
+            self.assertIn(token, source)
+        self.assertNotIn('SIGTERM', source)
+        self.assertNotIn('kill(', source)
+
     def test_security_static(self):
         source = (ROOT / 'scripts/selkies-desktop.py').read_text()
         self.assertIn('--addr=127.0.0.1', source)
@@ -268,7 +316,9 @@ class SelkiesTests(unittest.TestCase):
         compile(patched, 'patched-core', 'exec')
         for marker in ('def add_i386_nvidia(', 'def desktop_launchers(',
                        'Option "HardDPMS" "false"',
-                       'SELKIES_AUDIO_FRAME_DURATION_MS', 'pcfreeInputGuard = {version: 2'):
+                       'SELKIES_AUDIO_FRAME_DURATION_MS', 'pcfreeInputGuard = {version: 2',
+                       "SELKIES_AUDIO_BITRATE='96000'", 'flat-volumes = no',
+                       'default-fragment-size-msec = 40'):
             self.assertIn(marker, patched)
         self.assertTrue(callable(env['_core'].get('bootstrap')))
         tree = ast.parse(patched)
@@ -308,6 +358,56 @@ class SelkiesTests(unittest.TestCase):
         with patch.dict(core, {'logged': Mock(side_effect=RuntimeError('apt no disponible'))}):
             self.assertEqual(core['add_i386_nvidia']('580.82.07', '/fictional', '/libraries'),
                              '/libraries')
+
+    def test_audio_cell_runs_and_reports_a_tuned_session(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        source = ''.join(document['cells'][9]['source'])
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            home = base / 'home'
+            home.mkdir()
+            (base / 'session.json').write_text(json.dumps({
+                'user': 'pcfree-browser', 'home': str(home), 'env': {},
+                'processes': {'selkies': {'pid': 4242}}}))
+            source = source.replace("BASE = Path('/tmp/pcfree-selkies')",
+                                    f"BASE = Path({str(base)!r})")
+            environ = (b'SELKIES_AUDIO_BITRATE=96000\0'
+                       b'SELKIES_AUDIO_FRAME_DURATION_MS=20\0'
+                       b'SELKIES_AUDIO_REDUNDANCY_DISTANCE=2\0')
+            cmdline = b'/opt/selkies/bin/selkies\0--backpressure-queue-size=30\0'
+
+            def fake_pactl(argv, **kwargs):
+                text = ' '.join(argv)
+                if ' info' in text:
+                    out = ('Server Name: pulseaudio\n'
+                           'Default Sample Specification: s16le 2ch 48000Hz\n')
+                elif ' list ' in text:
+                    out = ('Sink #0\n\tName: output\n'
+                           '\tSample Specification: s16le 2ch 48000Hz\n')
+                elif 'get-sink-volume' in text:
+                    out = 'front-left: 65536 / 100% / -0.00 dB\n'
+                else:
+                    out = ''
+                return types.SimpleNamespace(returncode=0, stdout=out, stderr='')
+
+            def fake_read_bytes(self):
+                if str(self).endswith('/environ'):
+                    return environ
+                if str(self).endswith('/cmdline'):
+                    return cmdline
+                return b''
+
+            output = io.StringIO()
+            namespace = {'_core': {'audio_daemon_conf': CORE.audio_daemon_conf}}
+            with patch.object(subprocess, 'run', side_effect=fake_pactl), \
+                 patch.object(Path, 'read_bytes', fake_read_bytes), \
+                 patch.object(os, 'chown'), \
+                 patch('pwd.getpwnam', return_value=types.SimpleNamespace(pw_uid=1, pw_gid=1)), \
+                 contextlib.redirect_stdout(output):
+                exec(compile(source, 'audio-cell', 'exec'), namespace)
+            report = output.getvalue()
+            self.assertIn('Audio estable', report)
+            self.assertNotIn('[FAIL]', report)
 
     def test_cleanup_cell_keeps_active_tunnel_and_apt_metadata(self):
         document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
