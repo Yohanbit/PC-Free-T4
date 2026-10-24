@@ -29,6 +29,12 @@ La copia privada del cliente cancela el comportamiento predeterminado de `moused
 
 Documentación: [controles Selkies 2.0](https://github.com/selkies-project/selkies/blob/2.0.0/docs/usage.md) · [requisitos Sober](https://vinegarhq.org/Sober/Installation.html).
 
+## Audio
+
+El arranque escribe `~/.config/pulse/daemon.conf` (48 kHz, `s16le`, `flat-volumes=no`, `speex-float-1`, fragmentos de 40 ms), crea el sink `output` fijo a 48 kHz estéreo y lanza PulseAudio con `nice -10`. Selkies captura `output.monitor` a 96 kbps, 20 ms y RED 2, y la cola de backpressure es de 30 fragmentos (con 1 se descartaba audio al primer hipo).
+
+Estos ajustes se aplican al iniciar: una sesión anterior al cambio debe reiniciarse. La celda de audio verifica el perfil activo y solo ajusta en caliente el volumen (100 %) y el mute. No se ha medido todavía en todos los clientes ni con todas las cargas de audio. Si el corte aparece solo en un cliente, bajar el volumen del navegador o desactivar el audio en la barra lateral para distinguir el decodificador local del servidor.
+
 No se instalan controladores del kernel ni se sustituye Python del sistema. Si APT no ofrece las bibliotecas NVIDIA exactas, el arranque se detiene con un diagnóstico. No hay un tiempo de inicio fijo: depende de la VM, APT y las descargas.
 
 ## Aplicaciones y juegos opcionales

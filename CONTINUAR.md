@@ -6,7 +6,7 @@ Usar el cuaderno autocontenido publicado en `main` (`PC-Free-T4.ipynb`). Contien
 
 La configuración exige Ubuntu 24.04 amd64, una T4 y paquetes NVIDIA cuya versión upstream coincida exactamente con el controlador activo. Se usan los repositorios oficiales Ubuntu y NVIDIA CUDA para Ubuntu 24.04. Las bibliotecas se extraen sin instalar módulos, DKMS o controladores del kernel.
 
-Perfil gaming: 720p/60 FPS objetivo, Turbo, H.264/NVENC cuando está disponible y CBR 5 Mbps. Firefox usa un perfil independiente en `/tmp/pcfree-selkies/firefox-profile`, EGL NVIDIA y preferencias WebRender/WebGL. No se desactiva su sandbox. Revisar `about:support` → Gráficos en Firefox y estadísticas de Selkies para distinguir FPS de renderizado de FPS recibidos. La GPU no acelera todo el JavaScript ni convierte un juego limitado a 15 FPS en uno de 60.
+Perfil gaming: 720p/60 FPS objetivo, Turbo, H.264/NVENC cuando está disponible y CBR 5 Mbps. Audio a 48 kHz con `flat-volumes=no`, sink fijo estéreo, PulseAudio con `nice -10` y 30 fragmentos de cola para absorber los picos de NVENC sin cortar el sonido. Firefox usa un perfil independiente en `/tmp/pcfree-selkies/firefox-profile`, EGL NVIDIA y preferencias WebRender/WebGL. No se desactiva su sandbox. Revisar `about:support` → Gráficos en Firefox y estadísticas de Selkies para distinguir FPS de renderizado de FPS recibidos. La GPU no acelera todo el JavaScript ni convierte un juego limitado a 15 FPS en uno de 60.
 
 ## Estado local
 
@@ -39,6 +39,7 @@ Vulkan de 64 bits se verifica durante el arranque. Steam configura su propio ICD
 - Teclado relativo y mandos dentro de juegos, no únicamente en el escritorio.
 - Ejecución real de Blender, Godot, Vinegar/Studio y Sober/Roblox.
 - Restauración jugable de mundos y autorización individual de Drive.
+- Audio medio/alto sostenido sin cortes en clientes Android y de escritorio con el perfil de 48 kHz.
 
 La sesión de desarrollo confirmó Selkies desde Android, NVENC H.264, OpenGL 4.6 y Vulkan 1.4 en la T4. Se reinstaló Steam oficial y se compilaron las bibliotecas de mandos de 32/64 bits. No extrapolar estas pruebas a login, controles o ejecución de todos los programas.
 

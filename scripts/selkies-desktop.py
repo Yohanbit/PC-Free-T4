@@ -38,6 +38,32 @@ PACKAGES = ['xserver-xorg-core', 'xfce4-session', 'xfwm4', 'xfce4-panel',
             'dbus-x11', 'mesa-utils', 'vulkan-tools', 'x11-utils', 'x11-xserver-utils', 'xauth',
             'pulseaudio', 'pulseaudio-utils', 'ca-certificates', 'python3.12',
             'libgtk-3-0t64', 'libdbus-glib-1-2', 'libasound2t64', 'zenity', 'sudo']
+AUDIO_SINK_ARGS = ['sink_name=output', 'rate=48000', 'channels=2',
+                   'channel_map=front-left,front-right', 'format=s16le',
+                   'sink_properties=device.description=PC-Free']
+
+
+def audio_daemon_conf():
+    """Stable 48 kHz pipeline: no flat volumes, cheap resampling, fewer wakeups.
+
+    Without rtkit (Colab has none) realtime scheduling always fails; a negative
+    nice applied before runuser does work. Larger fragments absorb NVENC bursts
+    instead of producing xruns, which the client hears as crackle or freezes.
+    """
+    return '''# PC-Free: audio estable bajo carga de NVENC
+default-sample-format = s16le
+default-sample-rate = 48000
+alternate-sample-rate = 48000
+resample-method = speex-float-1
+enable-lfe-remixing = no
+flat-volumes = no
+exit-idle-time = -1
+high-priority = yes
+nice-level = -10
+realtime-scheduling = no
+default-fragments = 4
+default-fragment-size-msec = 40
+'''
 
 
 def private_json(path, value):
@@ -319,7 +345,10 @@ def prepare_user(root, libraries):
         with cookie.open('xb') as stream:
             stream.write(secrets.token_bytes(256))
     cookie.chmod(0o600)
-    for item in (home / '.config', pulse_config, cookie):
+    daemon_conf = pulse_config / 'daemon.conf'
+    daemon_conf.write_text(audio_daemon_conf())
+    daemon_conf.chmod(0o644)
+    for item in (home / '.config', pulse_config, cookie, daemon_conf):
         os.chown(item, account.pw_uid, account.pw_gid)
     env = {**os.environ, 'DISPLAY': DISPLAY, 'XAUTHORITY': str(authority),
            'HOME': str(home), 'USER': USER, 'LOGNAME': USER, 'XDG_RUNTIME_DIR': str(runtime),
@@ -395,9 +424,14 @@ def as_user(argv):
     return ['runuser', '-u', USER, '--', *argv]
 
 
-def spawn(argv, name, env, processes, user=True):
+def spawn(argv, name, env, processes, user=True, nice=None):
+    command = as_user(argv) if user else argv
+    if nice is not None:
+        # Lower the nice value as root before runuser drops privileges: setuid
+        # keeps it, while the desktop user could not raise its own priority.
+        command = ['nice', '-n', str(nice), *command]
     with (BASE / (name + '.log')).open('a') as log:
-        process = subprocess.Popen(as_user(argv) if user else argv, env=env,
+        process = subprocess.Popen(command, env=env,
                                    stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     processes[name] = process
     return process
@@ -724,15 +758,15 @@ def install_pixelflux_libxcb_guard(python):
     print('Pixelflux: importación verificada. NvFBC ahora puede detectar la copia de libxcb y declinarla de forma segura si no coincide.', flush=True)
 
 
-def bootstrap(firefox=True, framerate=60, bitrate=3000, width=960, height=540, backpressure_queue_size=1):
+def bootstrap(firefox=True, framerate=60, bitrate=3000, width=960, height=540, backpressure_queue_size=30):
     if (
         not isinstance(framerate, int) or not 1 <= framerate <= 60
         or not isinstance(bitrate, int) or not 500 <= bitrate <= 20000
         or not isinstance(width, int) or not 320 <= width <= 3840
         or not isinstance(height, int) or not 240 <= height <= 2160
-        or not isinstance(backpressure_queue_size, int) or not 1 <= backpressure_queue_size <= 8
+        or not isinstance(backpressure_queue_size, int) or not 1 <= backpressure_queue_size <= 120
     ):
-        raise ValueError('FPS: 1–60; bitrate: 500–20000 kbps; resolución: 320–3840 × 240–2160; cola: 1–8.')
+        raise ValueError('FPS: 1–60; bitrate: 500–20000 kbps; resolución: 320–3840 × 240–2160; cola: 1–120.')
     BASE.mkdir(mode=0o755, exist_ok=True)
     with (BASE / 'bootstrap.lock').open('w') as lock:
         try:
@@ -848,17 +882,25 @@ EndSection
                                       if 'OpenGL ES profile version string' in line), 'No informado por glxinfo')}
             audio_env = dict(env); audio_env.pop('PULSE_SERVER', None)
             pulse = spawn(['pulseaudio', '--daemonize=no', '--exit-idle-time=-1', '--disallow-exit',
-                           '--log-target=stderr'], 'pulse', audio_env, processes)
+                           '--log-target=stderr'], 'pulse', audio_env, processes, nice=-10)
             def audio_ready():
                 return subprocess.run(as_user(['pactl', 'info']), env=env, stdout=subprocess.DEVNULL,
                                       stderr=subprocess.DEVNULL, timeout=3).returncode == 0
             wait_for(audio_ready, 'PulseAudio', [pulse])
             sinks = capture(as_user(['pactl', 'list', 'short', 'sinks']), env=env)
             if not any(line.split()[1] == 'output' for line in sinks.splitlines() if len(line.split()) >= 2):
-                capture(as_user(['pactl', 'load-module', 'module-null-sink', 'sink_name=output',
-                                 'sink_properties=device.description=PC-Free']), env=env)
+                try:
+                    capture(as_user(['pactl', 'load-module', 'module-null-sink', *AUDIO_SINK_ARGS]), env=env)
+                except Exception as exc:
+                    print(f'Aviso: el sink de 48 kHz no se pudo crear ({exc}); se usa el sink simple.', flush=True)
+                    capture(as_user(['pactl', 'load-module', 'module-null-sink', 'sink_name=output',
+                                     'sink_properties=device.description=PC-Free']), env=env)
             capture(as_user(['pactl', 'set-default-sink', 'output']), env=env)
             capture(as_user(['pactl', 'set-default-source', 'output.monitor']), env=env)
+            # flat-volumes=no keeps gains independent; 100% avoids clipping when a
+            # game or the client raises its own volume at medium/high settings.
+            capture(as_user(['pactl', 'set-sink-volume', 'output', '100%']), env=env)
+            capture(as_user(['pactl', 'set-sink-mute', 'output', '0']), env=env)
             dbus = spawn(['dbus-daemon', '--session', '--nofork',
                           '--address=' + env['DBUS_SESSION_BUS_ADDRESS']], 'dbus', env, processes)
             def bus_ready():
@@ -885,6 +927,13 @@ EndSection
                               SELKIES_UI_SIDEBAR_SHOW_KEYBOARD_BUTTON='true',
                               SELKIES_VIDEO_STREAMING_MODE='true|locked',
                               SELKIES_USE_CPU='false|locked', SELKIES_AUTO_GPU='nvidia',
+                              SELKIES_AUDIO_ENABLED='true|locked',
+                              SELKIES_AUDIO_BITRATE='96000',
+                              SELKIES_AUDIO_CHANNELS='2',
+                              SELKIES_AUDIO_DEVICE_NAME='output.monitor',
+                              SELKIES_AUDIO_FRAME_DURATION_MS='20',
+                              SELKIES_AUDIO_REDUNDANCY='true|locked',
+                              SELKIES_AUDIO_REDUNDANCY_DISTANCE='2',
                               SELKIES_RATE_CONTROL_MODE='cbr')
             # NVENC FIX (Google Colab Tesla T4): SOLO afecta al proceso de Selkies.
             # Conserva LD_LIBRARY_PATH y añade las bibliotecas NVIDIA del runtime.
