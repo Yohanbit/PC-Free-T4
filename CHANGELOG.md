@@ -1,5 +1,20 @@
 # Cambios
 
+## 2026-10-25 · componentes actualizados y compatibilidad Proton
+
+- Selkies 2.1.0 con pixelflux 2.2.1 y pcmflux 2.2.0 incluidos; cloudflared 2026.10.3; Chrome 156.0.8078.47-1; GE-Proton11-11 y Proton 11.0-2. Los SHA-256/SHA-512 oficiales se verifican antes de usar cada descarga.
+- Chrome queda como navegador predeterminado, con perfil aislado, EGL/NVIDIA, límite de procesos y sin servicios de fondo. Se retira Firefox.
+- Resolución automática de Selkies (`--enable-resize=true`, máximo Xorg 1920×1080) y cola de 120 fragmentos para absorber hipos sin descartar audio ni video.
+- Se eliminan la celda de audio independiente, la celda de Xorg sin efecto y la prioridad duplicada; las prioridades quedan en una sola celda moderada.
+- Se borran los instaladores `.deb`/archivos temporales al terminar y se limpia APT para liberar espacio; Chrome limita procesos y caché en disco.
+- Se retira la descarga del wheel de pixelflux 59c523a: 2.2.1 ya incorpora la declinación de NvFBC cuando `libX11` usa otra copia de `libxcb` (notas de pixelflux 2.2.0). El resto de parches P1, P2, P4-P22 se conserva.
+- Perfil explícito para Selkies 2.1: CBR, 4 Mbps, 60 FPS, 960×540, cola 30, congestión desactivada, `frame-ancestors=self`, paint-over desactivado, segunda pantalla desactivada y audio 96 kbps/20 ms/RED 2. Así los nuevos defaults no cambian el perfil sin medirlo.
+- Librerías de compatibilidad 32/64 bits, códecs GStreamer/VA-API/VDPAU, OpenAL/SDL2 y herramientas de compilación multilib.
+- Celda 11 reescrita: `DXVK_SHADER_CACHE_PATH` y `VKD3D_SHADER_CACHE_PATH` reales, sin `DXVK_ASYNC`, `VKD3D_SHADER_CACHE`, `PROTON_NO_ESYNC`, `PROTON_NO_FSYNC=0`, `WINEPREFIX` ni `MESA_VK_WSI_PRESENT_MODE`. El lanzador de Steam carga `~/.config/pcfree/game.env`.
+- GE-Proton11-11 se descarga bajo demanda (no al iniciar), con SHA-512 y extracción validada.
+- Nueva celda de pruebas Proton: OpenGL/Vulkan 32/64 bits y arranque de prefijos Proton de 64 y 32 bits.
+- DXVK y VKD3D-Proton se actualizan con el runtime elegido (GE-Proton11-11 o Proton 11); no se instalan sueltos para no romper el runtime del juego.
+
 ## 2026-10-24 · preparación aplicada y limpieza conservadora
 - La celda de preparación publica el núcleo parcheado en `SOURCES` y lo recompila. Antes los parches se descartaban y el arranque usaba el código sin cambios, pese a imprimir `[OK]`.
 - Reejecutar la preparación ya no duplica parches: cada sustitución comprueba primero si ya está aplicada.
@@ -9,7 +24,7 @@
 - Audio estable: `daemon.conf` se escribe al iniciar (48 kHz, `s16le`, `flat-volumes=no`, `speex-float-1`, fragmentos de 40 ms), el sink `output` se crea fijo a 48 kHz y PulseAudio arranca con `nice -10`.
 - La cola de backpressure pasa de 1 a 30 fragmentos: con 1 se descartaba cualquier fragmento (audio incluido) al primer hipo, la causa más probable de los cortes con volumen medio/alto.
 - Selkies limita el audio a 96 kbps estéreo, 20 ms y RED 2; la celda de audio verifica el perfil activo en lugar de fingir aplicarlo.
-- Celda de captura reescrita: extrae `libnvidia-fbc.so.1` de la versión exacta del driver, unifica `libxcb` con rollback y verifica WebCodecs en los assets servidos. Se retiran `window.SELKIES_CONFIG`, `PIXELFLUX_NVENC_*` y los emojis; solo se aplican flags que existen en Selkies 2.0.
+- Celda de captura reescrita: extrae `libnvidia-fbc.so.1` de la versión exacta del driver, unifica `libxcb` con rollback y verifica WebCodecs en los assets servidos. Se retiran `window.SELKIES_CONFIG`, `PIXELFLUX_NVENC_*` y los emojis; solo se aplican flags que existen en Selkies.
 
 ## 2026-10-12 · perfil gaming NVIDIA
 - Perfil predeterminado 720p/60 FPS objetivo, H.264 NVENC cuando está disponible, Turbo y CBR 5 Mbps. Selección GPU NVIDIA y preferencia de codificación CPU desactivada.

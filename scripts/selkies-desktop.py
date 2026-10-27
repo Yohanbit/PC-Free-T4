@@ -6,6 +6,7 @@ driver installation, or automatic app windows. Logs stay on the ephemeral VM.
 import base64
 import contextlib
 import fcntl
+import hashlib
 import json
 import os
 import platform
@@ -27,17 +28,45 @@ BASE = Path('/tmp/pcfree-selkies')
 USER = 'pcfree-browser'
 DISPLAY = ':98'
 PORT = 8082
-SELKIES_VERSION = '2.0.0'
-SELKIES_DEB_VERSION = '2.0.0-1~ubuntu24.04'
+SELKIES_VERSION = '2.1.0'
+SELKIES_DEB_VERSION = '2.1.0-1~ubuntu24.04'
+SELKIES_DEB_SHA256 = 'cedba7a9d8bb4d07fd2b2139a518dc2c03452e0f0254c5bb088426623e2027f3'
 SELKIES_URL = ('https://github.com/selkies-project/selkies/releases/download/'
                f'{SELKIES_VERSION}/selkies-{SELKIES_VERSION}-ubuntu24.04-amd64.deb')
-CLOUDFLARED_URL = 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64'
-FIREFOX_URL = 'https://download.mozilla.org/?product=firefox-latest-ssl&os=linux64&lang=es-ES'
+CLOUDFLARED_VERSION = '2026.10.3'
+CLOUDFLARED_SHA256 = '053b80b0a23031a038fdbf3c073f59f82b8f1f152aa67971d7383ffafc0dbab0'
+CLOUDFLARED_URL = ('https://github.com/cloudflare/cloudflared/releases/download/'
+                   f'{CLOUDFLARED_VERSION}/cloudflared-linux-amd64')
+CHROME_VERSION = '156.0.8078.47-1'
+CHROME_SHA256 = '6c92cd22e90c6e3e255d782991543fa2091db8614e8536a971a7433a5c4d7ac8'
+CHROME_URL = ('https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/'
+              f'google-chrome-stable_{CHROME_VERSION}_amd64.deb')
 PACKAGES = ['xserver-xorg-core', 'xfce4-session', 'xfwm4', 'xfce4-panel',
             'xfdesktop4', 'xfce4-settings', 'thunar', 'xfce4-terminal',
             'dbus-x11', 'mesa-utils', 'vulkan-tools', 'x11-utils', 'x11-xserver-utils', 'xauth',
             'pulseaudio', 'pulseaudio-utils', 'ca-certificates', 'python3.12',
-            'libgtk-3-0t64', 'libdbus-glib-1-2', 'libasound2t64', 'zenity', 'sudo']
+            'libgtk-3-0t64', 'libdbus-glib-1-2', 'libasound2t64', 'zenity', 'sudo',
+            'gstreamer1.0-libav', 'gstreamer1.0-plugins-good',
+            'gstreamer1.0-plugins-bad', 'gstreamer1.0-plugins-ugly',
+            'libavcodec-extra', 'libva2', 'libva-drm2', 'libva-x11-2', 'libvdpau1',
+            'libvulkan1', 'libgl1', 'libegl1', 'libgles2', 'libopenal1',
+            'libsdl2-2.0-0', 'gcc-multilib', 'libc6-dev-i386',
+            'libx11-dev', 'libgl1-mesa-dev',
+            'xdg-utils', 'desktop-file-utils', 'fonts-liberation', 'wget']
+I386_LIBRARIES = [
+    'libgl1:i386', 'libglx0:i386', 'libglvnd0:i386', 'libegl1:i386',
+    'libgles2:i386', 'libvulkan1:i386', 'libdrm2:i386', 'libgbm1:i386',
+    'libx11-6:i386', 'libx11-xcb1:i386', 'libxext6:i386', 'libxrandr2:i386',
+    'libxinerama1:i386', 'libxcursor1:i386', 'libxi6:i386', 'libxss1:i386',
+    'libxtst6:i386', 'libxfixes3:i386', 'libxrender1:i386', 'libxcb1:i386',
+    'libxcb-render0:i386', 'libxcb-shm0:i386', 'libxcb-dri3-0:i386',
+    'libxkbcommon0:i386', 'libxkbcommon-x11-0:i386', 'libwayland-client0:i386',
+    'libudev1:i386', 'libdbus-1-3:i386', 'libfontconfig1:i386',
+    'libfreetype6:i386', 'libasound2t64:i386', 'libpulse0:i386',
+    'libva2:i386', 'libva-drm2:i386', 'libva-x11-2:i386', 'libvdpau1:i386',
+    'libopenal1:i386', 'libsdl2-2.0-0:i386', 'libstdc++6:i386',
+    'libx11-dev:i386', 'libgl1-mesa-dev:i386',
+]
 AUDIO_SINK_ARGS = ['sink_name=output', 'rate=48000', 'channels=2',
                    'channel_map=front-left,front-right', 'format=s16le',
                    'sink_properties=device.description=PC-Free']
@@ -103,6 +132,19 @@ def download(url, destination):
         temporary.replace(destination)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def require_sha256(path, expected):
+    """Fail closed when the official digest does not match."""
+    digest = hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    actual = digest.hexdigest()
+    if actual.lower() != expected.lower():
+        Path(path).unlink(missing_ok=True)
+        raise RuntimeError(f'SHA-256 inesperado para {Path(path).name}: {actual}; '
+                           'descarga eliminada.')
 
 
 @contextlib.contextmanager
@@ -223,6 +265,13 @@ def safe_apt_install(packages, validated_local_deb=None):
             raise RuntimeError('APT propone un origen no permitido; operación cancelada.')
     logged(['apt-get', 'install', '-y', '--no-install-recommends', *packages],
            env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive'})
+
+
+def install_compat_libraries():
+    """32-bit runtime libs for native games and Wine/Proton."""
+    logged(['dpkg', '--add-architecture', 'i386'], 'i386-arch', timeout=120)
+    logged(['apt-get', 'update', '-qq'], 'i386-update', timeout=240)
+    safe_apt_install(I386_LIBRARIES)
 
 
 def matching_version(madison, driver):
@@ -553,51 +602,83 @@ subprocess.run(['apt-get','install','-y','--no-install-recommends',sys.argv[1]],
     shortcut(session, 'Instalador', 'Instalador de paquetes Ubuntu', 'pcfree-run pcfree-install', 'system-software-install', True)
 
 
-def firefox_gpu_profile(session):
-    """Dedicated profile; preserve accounts and settings of other profiles."""
-    profile = BASE / 'firefox-profile'
+def install_chrome():
+    """Install the pinned official Chrome .deb after validating the APT plan."""
+    deb = BASE / 'chrome.deb'
+    download(CHROME_URL, deb)
+    require_sha256(deb, CHROME_SHA256)
+    plan = capture(['apt-get', '-s', 'install', '-y', '--no-install-recommends', str(deb)],
+                   timeout=180)
+    for line in plan.splitlines():
+        if line.startswith('Remv '):
+            raise RuntimeError('APT propone eliminar paquetes para Chrome; cancelado.')
+        if line.startswith('Inst '):
+            name = line.split()[1].split(':', 1)[0]
+            if 'nvidia' in name or name.startswith(('linux-image', 'linux-modules',
+                                                    'linux-headers', 'linux-generic')):
+                raise RuntimeError(f'Chrome intentaría cambiar {name}; cancelado.')
+    origins = capture(['apt-get', '--print-uris', '--download-only', 'install', '-y',
+                       '--no-install-recommends', str(deb)], timeout=180)
+    for uri, filename in re.findall(r"^'([^']*)'\s+(\S+)", origins, re.MULTILINE):
+        if uri.startswith('file:'):
+            local = Path(urllib.parse.unquote(urllib.parse.urlparse(uri).path)).resolve()
+            if local == deb.resolve():
+                continue
+        if uri == '' and filename.startswith('google-chrome-stable_'):
+            continue
+        if not official_ubuntu_uri(uri):
+            raise RuntimeError(f'Origen no oficial para Chrome: {uri}')
+    logged(['apt-get', 'install', '-y', '--no-install-recommends', str(deb)],
+           'chrome-install', env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive'},
+           timeout=900)
+    deb.unlink(missing_ok=True)
+    version = capture(['google-chrome', '--version'], timeout=30)
+    if 'Google Chrome' not in version:
+        raise RuntimeError('Google Chrome no se instaló correctamente.')
+    print(f'Chrome: {version.strip()}', flush=True)
+
+
+def chrome_profile(session):
+    """Private profile, low-overhead flags and default browser registration."""
+    BASE.mkdir(mode=0o755, exist_ok=True)
+    profile = BASE / 'chrome-profile'
     profile.mkdir(mode=0o700, exist_ok=True)
-    preferences = '\n'.join([
-        'user_pref("gfx.webrender.all", true);',
-        'user_pref("layers.acceleration.force-enabled", true);',
-        'user_pref("webgl.disabled", false);',
-        'user_pref("webgl.force-enabled", true);',
-        'user_pref("browser.sessionstore.resume_from_crash", false);',
-    ]) + '\n'
-    (profile / 'user.js').write_text(preferences)
     account = pwd.getpwnam(session['user'])
-    for item in (profile, profile / 'user.js'):
-        os.chown(item, account.pw_uid, account.pw_gid)
+    os.chown(profile, account.pw_uid, account.pw_gid)
+    flags = [
+        f'--user-data-dir={profile}',
+        '--no-first-run', '--no-default-browser-check',
+        '--disable-background-networking', '--disable-component-update',
+        '--disable-sync', '--disable-extensions', '--disable-default-apps',
+        '--disable-breakpad', '--disable-hang-monitor', '--disable-notifications',
+        '--disable-features=Translate,MediaRouter,OptimizationHints',
+        '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
+        '--disable-backgrounding-occluded-windows', '--disable-dev-shm-usage',
+        '--renderer-process-limit=2', '--process-per-site',
+        '--disk-cache-size=134217728', '--media-cache-size=33554432',
+        '--use-gl=egl', '--ignore-gpu-blocklist', '--ozone-platform=x11',
+    ]
+    wrapper = Path(session.get('bin_dir', '/usr/local/bin')) / 'pcfree-chrome'
+    wrapper.parent.mkdir(parents=True, exist_ok=True)
+    wrapper.write_text('#!/bin/sh\nexec /usr/local/bin/pcfree-run /usr/bin/google-chrome '
+                       + ' '.join(shlex.quote(flag) for flag in flags) + ' "$@"\n')
+    wrapper.chmod(0o755)
+    shortcut(session, 'Chrome', 'Google Chrome', str(wrapper) + ' %u', 'google-chrome')
+    home = Path(session['home'])
+    helpers = home / '.config' / 'xfce4' / 'helpers.rc'
+    helpers.parent.mkdir(parents=True, exist_ok=True)
+    lines = helpers.read_text().splitlines() if helpers.exists() else []
+    lines = [line for line in lines if not line.startswith('WebBrowser=')]
+    lines.append('WebBrowser=google-chrome')
+    helpers.write_text('\n'.join(lines) + '\n')
+    os.chown(helpers, account.pw_uid, account.pw_gid)
+    env = dict(session['env'], XDG_CURRENT_DESKTOP='XFCE')
+    subprocess.run(as_user(['xdg-settings', 'set', 'default-web-browser',
+                            'google-chrome.desktop']), env=env,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
+    (BASE / 'chrome-status.txt').write_text('listo\n')
+    print('Chrome listo: perfil aislado y navegador predeterminado.', flush=True)
     return profile
-
-
-def firefox_background(session):
-    def worker():
-        try:
-            destination = BASE / 'firefox'; destination.mkdir(exist_ok=True)
-            archive = destination / 'firefox.tar'
-            if not (destination / 'firefox/firefox').exists():
-                download(FIREFOX_URL, archive)
-                with tarfile.open(archive) as bundle:
-                    bundle.extractall(destination, filter='data')
-                archive.unlink()
-            command = '/usr/local/bin/pcfree-firefox'
-            profile = firefox_gpu_profile(session)
-            Path(command).write_text('#!/bin/sh\nexec /usr/local/bin/pcfree-run '
-                                     + 'env MOZ_X11_EGL=1 '
-                                     + shlex.quote(str(destination / 'firefox/firefox'))
-                                     + ' --no-remote --profile ' + shlex.quote(str(profile)) + ' "$@"\n')
-            Path(command).chmod(0o755)
-            shortcut(session, 'Firefox', 'Firefox', command + ' %u',
-                     str(destination / 'firefox/browser/chrome/icons/default/default128.png'))
-            (BASE / 'firefox-status.txt').write_text('listo\n')
-            print('Firefox listo: icono instalado; no se abrió ninguna ventana.', flush=True)
-        except Exception as error:
-            (BASE / 'firefox-status.txt').write_text('error: ' + str(error) + '\n')
-            print(f'Firefox: descarga/instalación fallida: {error}. Reintentar con firefox_background(SESSION).', flush=True)
-    thread = threading.Thread(target=worker, name='pcfree-firefox', daemon=True)
-    thread.start()
-    return thread
 
 
 def show_access():
@@ -610,10 +691,10 @@ def show_access():
     resolution = settings.get('resolution', '960x540')
     encoder = settings.get('encoder', 'h264enc')
     cpu_encode = str(settings.get('use_cpu', False)).lower()
-    queue_size = settings.get('backpressure_queue_size', 1)
+    queue_size = settings.get('backpressure_queue_size', 120)
     print(f'{resolution} · {encoder} · use-cpu={cpu_encode} · cola={queue_size} · {fps} FPS · {kbps} kbps CBR; NVENC se confirma en TX · Diagnóstico.')
-    firefox = 'descarga en segundo plano' if settings.get('firefox', True) else 'desactivado'
-    print(f'Registros: {BASE} | Firefox: {firefox}, sin abrir ventanas.')
+    chrome = 'instalado, perfil aislado' if settings.get('chrome') else 'desactivado'
+    print(f'Registros: {BASE} | Chrome: {chrome}, sin abrir ventanas.')
 
 
 def auth_ready(username, password):
@@ -690,83 +771,37 @@ def prepare_web_client(source=None):
     return str(target)
 
 
-def install_pixelflux_libxcb_guard(python):
-    """Install the official Pixelflux build with the NvFBC/libxcb ABI guard."""
-    tag = '59c523a'
-    api = f'https://api.github.com/repos/selkies-project/pixelflux/releases/tags/{tag}'
-    request = urllib.request.Request(
-        api,
-        headers={
-            'Accept': 'application/vnd.github+json',
-            'User-Agent': 'PC-Free-T4',
-            'X-GitHub-Api-Version': '2022-11-28',
-        },
-    )
-    print(f'Pixelflux: consultando el release oficial fijado {tag}…', flush=True)
-    try:
-        with urllib.request.urlopen(request, timeout=40) as response:
-            release = json.load(response)
-    except Exception as exc:
-        raise RuntimeError(
-            f'No se pudo consultar el release oficial de Pixelflux {tag}: {exc}. '
-            'No se iniciará Selkies con el módulo vulnerable.'
-        ) from exc
-    if release.get('tag_name') != tag:
-        raise RuntimeError(f'Release de Pixelflux inesperado: {release.get("tag_name")!r}.')
-    assets = release.get('assets', [])
-    suffix = '-cp312-cp312-manylinux_2_28_x86_64.whl'
-    candidates = [
-        asset for asset in assets
-        if asset.get('name', '').startswith('pixelflux-')
-        and asset.get('name', '').endswith(suffix)
-        and not any(token in asset.get('name', '').lower()
-                    for token in ('nogpl', 'no-gpl', 'openh264', 'kvazaar'))
-    ]
-    if len(candidates) != 1:
-        names = [a.get('name', '') for a in assets if a.get('name', '').endswith(suffix)]
-        raise RuntimeError(
-            'No se pudo seleccionar de forma unívoca el wheel GPL de Pixelflux '
-            f'para CPython 3.12/x86_64. Coincidencias: {names!r}. '
-            'No se iniciará Selkies con el módulo vulnerable.'
-        )
-    asset = candidates[0]
-    wheel = BASE / asset['name']
-    download(asset['browser_download_url'], wheel)
-    digest = asset.get('digest') or ''
-    if digest.startswith('sha256:'):
-        actual = __import__('hashlib').sha256(wheel.read_bytes()).hexdigest()
-        if actual.lower() != digest.split(':', 1)[1].lower():
-            wheel.unlink(missing_ok=True)
-            raise RuntimeError('El SHA-256 del wheel de Pixelflux no coincide con GitHub Releases.')
-    print(f'Pixelflux: instalando el wheel oficial {asset["name"]}…', flush=True)
-    logged([
-        str(python), '-m', 'pip', 'install', '--disable-pip-version-check',
-        '--no-deps', '--force-reinstall', str(wheel)
-    ], 'pixelflux-libxcb-fix', timeout=240)
+def verify_pixelflux(python):
+    """Selkies 2.1 bundles pixelflux 2.2.1; never replace it with an older wheel."""
     result = capture([
         str(python), '-c',
         'import importlib.metadata as m, pixelflux; '
-        'print("pixelflux version:", m.version("pixelflux")); '
-        'print("module:", pixelflux.__file__); '
-        'print("software encoders:", pixelflux.SOFTWARE_ENCODERS)'
-    ], timeout=30)
-    if '/opt/selkies/lib/python3.12/site-packages/pixelflux' not in result:
-        raise RuntimeError('Pixelflux actualizado, pero Python no está importando el módulo de /opt/selkies.\n' + result)
-    (BASE / 'pixelflux-libxcb-fix.log').write_text(
-        f'Upstream release: {tag}\nWheel: {asset["name"]}\n{result}\n'
-    )
-    print('Pixelflux: importación verificada. NvFBC ahora puede detectar la copia de libxcb y declinarla de forma segura si no coincide.', flush=True)
+        'print(m.version("pixelflux")); print(pixelflux.__file__)'
+    ], timeout=60)
+    lines = [line.strip() for line in result.splitlines() if line.strip()]
+    version = lines[0] if lines else ''
+    module = lines[1] if len(lines) > 1 else ''
+    try:
+        parts = tuple(int(part) for part in version.split('.')[:3])
+    except ValueError:
+        raise RuntimeError(f'Versión de pixelflux ilegible: {version!r}')
+    if parts < (2, 2, 1):
+        raise RuntimeError(f'Pixelflux {version} es anterior a 2.2.1; no se inicia.')
+    if '/opt/selkies/lib/python3.12/site-packages/pixelflux' not in module:
+        raise RuntimeError(f'Pixelflux no se importa desde /opt/selkies: {module}')
+    (BASE / 'pixelflux-version.log').write_text(f'{version}\n{module}\n')
+    print(f'Pixelflux {version} verificado: {module}', flush=True)
 
 
-def bootstrap(firefox=True, framerate=60, bitrate=3000, width=960, height=540, backpressure_queue_size=30):
+def bootstrap(chrome=True, framerate=60, bitrate=3000, width=960, height=540, backpressure_queue_size=120):
     if (
         not isinstance(framerate, int) or not 1 <= framerate <= 60
         or not isinstance(bitrate, int) or not 500 <= bitrate <= 20000
         or not isinstance(width, int) or not 320 <= width <= 3840
         or not isinstance(height, int) or not 240 <= height <= 2160
-        or not isinstance(backpressure_queue_size, int) or not 1 <= backpressure_queue_size <= 120
+        or not isinstance(backpressure_queue_size, int) or not 1 <= backpressure_queue_size <= 100000
     ):
-        raise ValueError('FPS: 1–60; bitrate: 500–20000 kbps; resolución: 320–3840 × 240–2160; cola: 1–120.')
+        raise ValueError('FPS: 1–60; bitrate: 500–20000 kbps; resolución: 320–3840 × 240–2160; cola: 1–100000.')
     BASE.mkdir(mode=0o755, exist_ok=True)
     with (BASE / 'bootstrap.lock').open('w') as lock:
         try:
@@ -787,21 +822,36 @@ def bootstrap(firefox=True, framerate=60, bitrate=3000, width=960, height=540, b
         with phase('Paquetes mínimos y Selkies oficial'):
             logged(['apt-get', 'update', '-qq'], timeout=240)
             safe_apt_install(PACKAGES)
+            install_compat_libraries()
+            chrome_ok = False
+            if chrome:
+                try:
+                    install_chrome()
+                    chrome_ok = True
+                except Exception as exc:
+                    print(f'AVISO: Chrome no se instaló: {exc}', flush=True)
             deb = BASE / 'selkies.deb'; download(SELKIES_URL, deb)
+            require_sha256(deb, SELKIES_DEB_SHA256)
             safe_apt_install([str(deb)], validated_local_deb=deb)
+            deb.unlink(missing_ok=True)
             # Only fix the private package venv, NEVER /usr/bin/python3.
             python = Path('/opt/selkies/bin/python3')
             if not python.is_symlink():
                 raise RuntimeError('Python privado Selkies inesperado; no modificar Python del sistema.')
             python.unlink(); python.symlink_to('/usr/bin/python3.12')
-            install_pixelflux_libxcb_guard(python)
+            verify_pixelflux(python)
             capture(['/opt/selkies/bin/selkies', '--help'])
             web_root = prepare_web_client()
             shm_perms = shm_perms_library()
-            tunnel = BASE / 'cloudflared'; download(CLOUDFLARED_URL, tunnel); tunnel.chmod(0o755)
+            tunnel = BASE / 'cloudflared'; download(CLOUDFLARED_URL, tunnel)
+            require_sha256(tunnel, CLOUDFLARED_SHA256)
+            tunnel.chmod(0o755)
+            logged(['apt-get', 'clean'], 'apt-clean', timeout=120)
         with phase('Bibliotecas 3D exactas, aisladas del kernel'):
             root, libraries = graphics(driver)
             session, env = prepare_user(root, libraries)
+            for deb in (BASE / 'nvidia').glob('*.deb'):
+                deb.unlink(missing_ok=True)
             icd = vulkan_icd(root)
             for key in ('VK_DRIVER_FILES', 'VK_ICD_FILENAMES'):
                 env[key] = icd
@@ -816,13 +866,19 @@ def bootstrap(firefox=True, framerate=60, bitrate=3000, width=960, height=540, b
                 mapping['__EGL_VENDOR_LIBRARY_FILENAMES'] = str(egl)
             session['driver_version'] = driver
             session['settings'] = {
-                'framerate': framerate, 'bitrate': bitrate, 'firefox': firefox,
+                'framerate': framerate, 'bitrate': bitrate, 'chrome': chrome_ok,
                 'width': width, 'height': height, 'resolution': f'{width}x{height}',
                 'encoder': 'h264enc', 'use_cpu': False,
                 'backpressure_queue_size': backpressure_queue_size,
-                'rate_control_mode': 'cbr',
+                'rate_control_mode': 'cbr', 'enable_resize': True,
             }
             desktop_files(session)
+            if chrome_ok:
+                try:
+                    chrome_profile(session)
+                except Exception as exc:
+                    session['settings']['chrome'] = False
+                    print(f'AVISO: perfil de Chrome no creado: {exc}', flush=True)
         # Mark setup BEFORE launching, so failures never cause a destructive rerun.
         session['processes'] = {}
         private_json(state, session)
@@ -847,10 +903,10 @@ Section "Screen"
  DefaultDepth 24
  SubSection "Display"
   Depth 24
-  Virtual SCREEN_WIDTH SCREEN_HEIGHT
+  Virtual MAX_WIDTH MAX_HEIGHT
  EndSubSection
 EndSection
-'''.replace('BUSID', busid).replace('SCREEN_WIDTH', str(width)).replace('SCREEN_HEIGHT', str(height)))
+'''.replace('BUSID', busid).replace('MAX_WIDTH', str(max(width, 1920))).replace('MAX_HEIGHT', str(max(height, 1080))))
             module = next(root.rglob('nvidia_drv.so')).parent.parent
             xorg = spawn(['/usr/lib/xorg/Xorg', DISPLAY, '-config', str(config), '-modulepath',
                           f'{module},/usr/lib/xorg/modules', '-logfile', str(BASE / 'Xorg.log'),
@@ -951,8 +1007,17 @@ EndSection
             server = spawn(['/opt/selkies/bin/selkies', '--addr=127.0.0.1', f'--port={PORT}',
                             '--web-root=' + web_root,
                             '--mode=websockets', '--enable-basic-auth=true', '--enable-https=false',
-                            '--encoder=h264enc', '--use-cpu=false', f'--framerate={framerate}', f'--video-bitrate={bitrate}',
-                            '--enable-resize=false', f'--backpressure-queue-size={backpressure_queue_size}'], 'selkies', server_env, processes)
+                            '--encoder=h264enc', '--use-cpu=false', '--auto-gpu=nvidia',
+                            f'--framerate={framerate}', f'--video-bitrate={bitrate}',
+                            '--rate-control-mode=cbr', '--keyframe-interval=0',
+                            '--video-streaming-mode=true', '--video-fullcolor=false',
+                            '--enable-resize=true', f'--backpressure-queue-size={backpressure_queue_size}',
+                            '--congestion-control=false', '--frame-ancestors=self',
+                            '--use-paint-over-quality=false', '--second-screen=false',
+                            '--audio-enabled=true', '--audio-bitrate=96000',
+                            '--audio-channels=2', '--audio-device-name=output.monitor',
+                            '--audio-frame-duration-ms=20', '--audio-redundancy=true'],
+                           'selkies', server_env, processes)
             wait_for(lambda: auth_ready(access['username'], access['password']), 'Selkies + autenticación', [server], 60)
             selkies_log = (BASE / 'selkies.log').read_text(errors='replace')
             if re.search(r'X11 Access error|BadAccess|XShm.*(fail|error)', selkies_log, re.I):
@@ -974,8 +1039,6 @@ EndSection
         private_json(state, session)
         print(f'Escritorio preparado en {time.monotonic() - started:.1f} s.', flush=True)
         show_access()
-        if firefox:
-            firefox_background(session)
         return session
 
 

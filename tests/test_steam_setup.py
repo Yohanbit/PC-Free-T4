@@ -1,10 +1,14 @@
 """Pruebas offline: no APT, red, Steam, escritorio ni sesión real."""
 import contextlib
+import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
+import shutil
 import struct
 import subprocess
+import tarfile
 import tempfile
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -14,6 +18,10 @@ spec = importlib.util.spec_from_file_location('pcfree_optional', SOURCE)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 assert callable(module.install_steam)
+assert callable(module.install_ge_proton)
+assert module.GE_PROTON_VERSION == 'GE-Proton11-11'
+assert module.GE_PROTON_URL.endswith('GE-Proton11-11-x86_64.tar.gz')
+assert len(module.GE_PROTON_SHA512) == 128
 checks = []
 
 with patch.dict(module.os.environ, {'LD_LIBRARY_PATH': '/host/nvml', 'LD_PRELOAD': '/bad.so'}), \
@@ -135,6 +143,7 @@ with tempfile.TemporaryDirectory(prefix='steam-offline-') as temporary:
         subprocess.run(['sh', '-n', str(path)], check=True)
         assert 'dbus-run-session' in shell  # comentario explica por qué NO usarlo
         assert 'dbus-run-session --' not in shell
+        assert '. "$HOME/.config/pcfree/game.env"' in shell
         assert '-cef-disable' not in shell and '--no-sandbox' not in shell
         assert 'SELKIES_BASIC_AUTH_PASSWORD' not in shell
         if gamepads:
@@ -142,7 +151,7 @@ with tempfile.TemporaryDirectory(prefix='steam-offline-') as temporary:
             assert "'/isolated/$LIB/libudev.so.1'" in shell
     checks.append('generated POSIX launcher / literal $LIB / no CEF or sandbox flags')
 
-    # Simular TODO el install sin llamadas al sistema de paquetes/red/clientes.
+    # Simular toda la instalación sin llamadas al sistema de paquetes/red/clientes.
     runtime = root / 'runtime'
     runtime.mkdir()
     runner = root / 'pcfree-run'
@@ -194,5 +203,29 @@ with tempfile.TemporaryDirectory(prefix='steam-offline-') as temporary:
     assert gamepad_result['root'] == str(runtime.parent / 'fake-udev')
     assert not any(cmd[0] in ('nvidia-smi', 'dpkg-deb') for cmd in commands)
     checks.append('independent gamepad API without Steam/NVIDIA/deb download')
+
+with tempfile.TemporaryDirectory() as folder:
+    root = Path(folder)
+    home = root / 'home'
+    home.mkdir()
+    archive = root / 'GE-Proton11-11-x86_64.tar.gz'
+    payload = b'#!/bin/sh\nexit 0\n'
+    with tarfile.open(archive, 'w:gz') as bundle:
+        info = tarfile.TarInfo('GE-Proton11-11-x86_64/proton')
+        info.size = len(payload)
+        info.mode = 0o755
+        bundle.addfile(info, io.BytesIO(payload))
+    digest = hashlib.sha512(archive.read_bytes()).hexdigest()
+    def fake_ge_download(url, target):
+        shutil.copy2(archive, target)
+    with patch.object(module, 'GE_PROTON_SHA512', digest), \
+         patch.object(module, '_download', side_effect=fake_ge_download), \
+         patch.object(module.pwd, 'getpwnam',
+                      return_value=SimpleNamespace(pw_uid=12345, pw_gid=12345)), \
+         patch.object(module.os, 'chown'):
+        result = module.install_ge_proton({'user': 'offline-user', 'home': str(home)})
+    target = home / '.steam/steam/compatibilitytools.d/GE-Proton11-11/proton'
+    assert result['installed'] and target.is_file()
+    checks.append('GE-Proton pinned download, SHA-512 and safe extraction')
 
 print(json.dumps({'passed': len(checks), 'checks': checks, 'live_session_accessed': False}, indent=2))

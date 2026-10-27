@@ -8,16 +8,18 @@ Opciones en session['steam']: gamepads=False, repair_client=False,
 No cambia el controlador del kernel, libudev del sistema ni el Python global.
 
 Fuentes: repo.steampowered.com/steam/archive/stable/steam_latest.deb;
-github.com/selkies-project/selkies/tree/2.0.0/addons/fake-udev;
+github.com/selkies-project/selkies/tree/2.1.0/addons/fake-udev;
 github.com/selkies-project/proot-bwrap (alternativa, no frontera de seguridad).
 fake-udev sirve para mandos; no es una reparación demostrada del login.
 """
 
 import argparse
 import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
+import posixpath
 import pwd
 import re
 import shlex
@@ -31,7 +33,12 @@ import urllib.request
 
 
 STEAM_DEB = 'https://repo.steampowered.com/steam/archive/stable/steam_latest.deb'
-SELKIES_TAG = '2.0.0'
+SELKIES_TAG = '2.1.0'
+GE_PROTON_VERSION = 'GE-Proton11-11'
+GE_PROTON_URL = ('https://github.com/GloriousEggroll/proton-ge-custom/releases/download/'
+                 f'{GE_PROTON_VERSION}/{GE_PROTON_VERSION}-x86_64.tar.gz')
+GE_PROTON_SHA512 = ('45721a7b625b2404d8896bb5e2a8b87fc9623a394873a6dd6b900c839681d5c0'
+                    '1ec694ca00d003fc9c733c5f6c5648af8171985656f9fa47e20999fbebdbe235')
 TRIPLETS = {'amd64': 'x86_64-linux-gnu', 'i386': 'i386-linux-gnu'}
 
 
@@ -107,7 +114,8 @@ def _download(url, target):
     # HTTPS, hosts oficiales; nunca ejecutar un instalador remoto mediante pipe.
     with urllib.request.urlopen(url, timeout=90) as response:
         if urllib.parse.urlparse(response.url).hostname not in {
-                'repo.steampowered.com', 'github.com', 'codeload.github.com'}:
+                'repo.steampowered.com', 'github.com', 'codeload.github.com',
+                'objects.githubusercontent.com', 'release-assets.githubusercontent.com'}:
             raise RuntimeError('Redirección de descarga fuera de los hosts oficiales.')
         with Path(target).open('wb') as stream:
             shutil.copyfileobj(response, stream)
@@ -319,6 +327,9 @@ prepend_preload "$SELKIES_INTERPOSER"
         assignments += 'export BWRAP=' + shlex.quote(bwrap) + '\n'
     return '''#!/bin/sh
 set -eu
+if [ -r "$HOME/.config/pcfree/game.env" ]; then
+  . "$HOME/.config/pcfree/game.env"
+fi
 if [ "$(id -u)" = 0 ]; then echo 'Steam debe ejecutarse como usuario normal.' >&2; exit 1; fi
 : "${HOME:?}" "${XDG_RUNTIME_DIR:?}" "${DISPLAY:?}" "${XAUTHORITY:?}"
 bus_ok() {
@@ -338,6 +349,97 @@ if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] || ! bus_ok "$DBUS_SESSION_BUS_ADDRESS
   export DBUS_SESSION_BUS_ADDRESS="$address"
 fi
 ''' + assignments + 'exec ' + shlex.quote(str(client)) + ' "$@"\n'
+
+
+def _sha512(path):
+    digest = hashlib.sha512()
+    with Path(path).open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def install_ge_proton(session):
+    """Download the pinned GE-Proton release on demand and verify its SHA-512."""
+    required = ('user', 'home')
+    if any(key not in session for key in required):
+        raise ValueError('Estado incompleto para GE-Proton.')
+    account = pwd.getpwnam(session['user'])
+    home = Path(session['home'])
+    base = home / '.cache' / 'pcfree' / 'ge-proton'
+    base.mkdir(parents=True, exist_ok=True)
+    os.chown(base.parent, account.pw_uid, account.pw_gid)
+    os.chown(base, account.pw_uid, account.pw_gid)
+
+    tools = home / '.steam' / 'steam' / 'compatibilitytools.d'
+    tools.mkdir(parents=True, exist_ok=True)
+    os.chown(tools, account.pw_uid, account.pw_gid)
+    target = tools / GE_PROTON_VERSION
+    proton = target / 'proton'
+    if proton.is_file() and os.access(proton, os.X_OK):
+        print(f'GE-Proton ya instalado: {target}')
+        return {'installed': True, 'path': str(target), 'version': GE_PROTON_VERSION}
+
+    archive = base / f'{GE_PROTON_VERSION}.tar.gz'
+    if not archive.is_file() or _sha512(archive) != GE_PROTON_SHA512:
+        if archive.exists():
+            archive.unlink()
+        print(f'GE-Proton: descargando {GE_PROTON_URL}')
+        _download(GE_PROTON_URL, archive)
+    if _sha512(archive) != GE_PROTON_SHA512:
+        archive.unlink(missing_ok=True)
+        raise RuntimeError('El SHA-512 de GE-Proton no coincide con la suma oficial; '
+                           'descarga eliminada.')
+    extract_dir = base / 'extract'
+    if extract_dir.exists():
+        shutil.rmtree(extract_dir)
+    extract_dir.mkdir(parents=True)
+    with tarfile.open(archive) as source:
+        members = source.getmembers()
+        for member in members:
+            path = Path(member.name)
+            if path.is_absolute() or '..' in path.parts:
+                raise RuntimeError('Entrada no segura en el archivo de GE-Proton.')
+            if member.issym() or member.islnk():
+                link = member.linkname
+                if link.startswith('/'):
+                    raise RuntimeError('Enlace no seguro en el archivo de GE-Proton.')
+                if member.issym():
+                    resolved = posixpath.normpath(
+                        posixpath.join(posixpath.dirname(member.name), link))
+                else:
+                    resolved = posixpath.normpath(link)
+                if resolved == '..' or resolved.startswith('../') or resolved.startswith('/'):
+                    raise RuntimeError('Enlace no seguro en el archivo de GE-Proton.')
+                continue
+            if not (member.isfile() or member.isdir()):
+                raise RuntimeError('Tipo de entrada no admitido en GE-Proton.')
+        for member in members:
+            source.extract(member, extract_dir)
+    roots = [entry for entry in extract_dir.iterdir() if entry.is_dir()]
+    if len(roots) != 1:
+        raise RuntimeError('El archivo de GE-Proton no tiene una única carpeta raíz.')
+    if target.exists():
+        shutil.rmtree(target)
+    roots[0].rename(target)
+    shutil.rmtree(extract_dir, ignore_errors=True)
+    archive.unlink(missing_ok=True)
+    if not proton.is_file():
+        raise RuntimeError('GE-Proton no contiene el ejecutable proton.')
+    proton.chmod(0o755)
+    for directory, directories, files in os.walk(target):
+        os.chown(directory, account.pw_uid, account.pw_gid)
+        for name in directories + files:
+            os.chown(Path(directory) / name, account.pw_uid, account.pw_gid,
+                     follow_symlinks=False)
+    result = {'installed': True, 'path': str(target), 'version': GE_PROTON_VERSION,
+              'sha512': GE_PROTON_SHA512}
+    (base / 'installation.json').write_text(json.dumps(result, indent=2))
+    os.chown(base / 'installation.json', account.pw_uid, account.pw_gid)
+    print(f'GE-Proton instalado: {target}')
+    print('En Steam: Configuración > Compatibilidad > Steam Play para todos los títulos > '
+          + GE_PROTON_VERSION)
+    return result
 
 
 def install_steam(session):
@@ -466,9 +568,13 @@ def main():
     parser.add_argument('--gamepads', action='store_true', help='Compilar fake-udev oficial aislado (ambos ELF).')
     parser.add_argument('--gamepads-only', action='store_true', help='Instalar sólo mandos, sin descargar Steam.')
     parser.add_argument('--repair-client', action='store_true', help='Poner sólo binarios redistribuibles en cuarentena.')
+    parser.add_argument('--ge-proton', action='store_true', help='Descargar GE-Proton fijado y verificado.')
     args = parser.parse_args()
     session = json.loads(Path(args.session).read_text())
     session['steam'] = dict(session.get('steam', {}))
+    if args.ge_proton:
+        install_ge_proton(session)
+        return
     if args.gamepads:
         session['steam']['gamepads'] = True
     if args.repair_client:

@@ -1,6 +1,7 @@
 """Offline unit/integration checks. No install, network, Colab or live processes."""
 import ast
 import contextlib
+import hashlib
 import importlib.util
 import inspect
 import io
@@ -17,6 +18,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('pcfree_selkies_test', ROOT / 'scripts/selkies-desktop.py')
 CORE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CORE)
+
+
+def find_cell(document, needle):
+    for index, cell in enumerate(document['cells']):
+        if needle in ''.join(cell['source']):
+            return index, cell
+    raise AssertionError(f'No se encontró la celda: {needle}')
 
 
 class SelkiesTests(unittest.TestCase):
@@ -123,21 +131,23 @@ class SelkiesTests(unittest.TestCase):
                 CORE.vulkan_icd(root)
 
     def test_apt_only_explicit_validated_local_deb(self):
-        metadata = 'Package: selkies\nVersion: 2.0.0-1~ubuntu24.04\nArchitecture: amd64\n'
-        self.assertEqual(CORE.SELKIES_DEB_VERSION, '2.0.0-1~ubuntu24.04')
+        version = CORE.SELKIES_DEB_VERSION
+        self.assertEqual(version, '2.1.0-1~ubuntu24.04')
+        metadata = f'Package: selkies\nVersion: {version}\nArchitecture: amd64\n'
         with tempfile.TemporaryDirectory() as folder:
             base = Path(folder)
             deb = base / 'selkies.deb'
             deb.write_bytes(b'offline placeholder')
-            entries = [(f"'file:{deb}' selkies_2.0.0-1~ubuntu24.04_amd64.deb 123", True),
-                       ("'' selkies_2.0.0-1~ubuntu24.04_amd64.deb 123", True),
-                       ("'' selkies_2.0.0_amd64.deb 123", False),
+            filename = f'selkies_{version}_amd64.deb'
+            entries = [(f"'file:{deb}' {filename} 123", True),
+                       (f"'' {filename} 123", True),
+                       ("'' selkies_2.1.0_amd64.deb 123", False),
                        ("'' another_1.0_amd64.deb 123", False),
-                       ("'file:/tmp/untrusted.deb' selkies_2.0.0-1~ubuntu24.04_amd64.deb 123", False),
-                       (f"'file://untrusted{deb}' selkies_2.0.0-1~ubuntu24.04_amd64.deb 123", False)]
+                       (f"'file:/tmp/untrusted.deb' {filename} 123", False),
+                       (f"'file://untrusted{deb}' {filename} 123", False)]
             for output, allowed in entries:
                 with patch.object(CORE, 'BASE', base), \
-                     patch.object(CORE, 'capture', side_effect=[metadata, 'Inst selkies (2.0.0-1~ubuntu24.04)', output]), \
+                     patch.object(CORE, 'capture', side_effect=[metadata, f'Inst selkies ({version})', output]), \
                      patch.object(CORE, 'logged') as run:
                     if allowed:
                         CORE.safe_apt_install([str(deb)], validated_local_deb=deb)
@@ -146,12 +156,12 @@ class SelkiesTests(unittest.TestCase):
                         with self.assertRaisesRegex(RuntimeError, 'origen'):
                             CORE.safe_apt_install([str(deb)], validated_local_deb=deb)
                         run.assert_not_called()
-            with patch.object(CORE, 'capture', side_effect=['Inst selkies (2.0.0-1~ubuntu24.04)', entries[0][0]]), \
+            with patch.object(CORE, 'capture', side_effect=[f'Inst selkies ({version})', entries[0][0]]), \
                  patch.object(CORE, 'logged') as run:
                 with self.assertRaisesRegex(RuntimeError, 'origen'):
                     CORE.safe_apt_install([str(deb)])
                 run.assert_not_called()
-            for wrong_version in ('2.0.0', '2.0.0-2~ubuntu24.04', '99.0'):
+            for wrong_version in ('2.1.0', '2.1.0-2~ubuntu24.04', '99.0'):
                 with patch.object(CORE, 'BASE', base), \
                      patch.object(CORE, 'capture', return_value=metadata.replace(CORE.SELKIES_DEB_VERSION, wrong_version)):
                     with self.assertRaisesRegex(RuntimeError, 'Identidad'):
@@ -238,11 +248,11 @@ class SelkiesTests(unittest.TestCase):
         for invalid in ("AUDIO_FRAME_DURATION_MS='20|locked'", "AUDIO_BITRATE='96000|locked'",
                         "AUDIO_CHANNELS='2-2'", "AUDIO_REDUNDANCY_DISTANCE='2-2'"):
             self.assertNotIn(invalid, core_source)
-        # One queued chunk drops audio on the first hiccup; 30 absorbs NVENC bursts.
+        # One queued chunk drops audio on the first hiccup; 120 keeps the stream alive.
         self.assertEqual(inspect.signature(CORE.bootstrap)
-                         .parameters['backpressure_queue_size'].default, 30)
-        with self.assertRaisesRegex(ValueError, 'cola: 1–120'):
-            CORE.bootstrap(backpressure_queue_size=121)
+                         .parameters['backpressure_queue_size'].default, 120)
+        with self.assertRaisesRegex(ValueError, 'cola: 1–100000'):
+            CORE.bootstrap(backpressure_queue_size=100001)
 
     def test_spawn_lowers_audio_priority_before_dropping_privileges(self):
         with tempfile.TemporaryDirectory() as folder, \
@@ -253,19 +263,10 @@ class SelkiesTests(unittest.TestCase):
             self.assertEqual(command[:5], ['nice', '-n', '-10', 'runuser', '-u'])
             self.assertIn('pulseaudio', command)
 
-    def test_audio_cell_verifies_without_restarting_services(self):
-        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
-        source = ''.join(document['cells'][9]['source'])
-        for token in ("audio_daemon_conf", "flat-volumes = no", "get-sink-volume",
-                      "Default Sample Specification", "SELKIES_AUDIO_BITRATE",
-                      "no reinicia"):
-            self.assertIn(token, source)
-        self.assertNotIn('SIGTERM', source)
-        self.assertNotIn('kill(', source)
-
     def test_capture_cell_uses_only_real_settings(self):
         document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
-        source = ''.join(document['cells'][10]['source'])
+        _, cell = find_cell(document, 'Optimización de captura y stream')
+        source = ''.join(cell['source'])
         # Selkies 2.0 already decodes with WebCodecs; window.SELKIES_CONFIG does
         # not exist and PIXELFLUX_NVENC_* profile/preset/bframes are not settings.
         for forbidden in ('SELKIES_CONFIG', 'PIXELFLUX_NVENC_PROFILE', 'PIXELFLUX_NVENC_PRESET',
@@ -285,6 +286,64 @@ class SelkiesTests(unittest.TestCase):
                 decorative = (point in (0xfe0f, 0x200d) or 0x1f000 <= point <= 0x1faff
                               or 0x2600 <= point <= 0x27bf or 0x2b00 <= point <= 0x2bff)
                 self.assertFalse(decorative, f'emoji {character!r} en la celda {index}')
+
+    def test_pinned_versions_and_sha256(self):
+        self.assertEqual(CORE.SELKIES_VERSION, '2.1.0')
+        self.assertEqual(CORE.SELKIES_DEB_VERSION, '2.1.0-1~ubuntu24.04')
+        self.assertEqual(CORE.CLOUDFLARED_VERSION, '2026.10.3')
+        self.assertEqual(CORE.CHROME_VERSION, '156.0.8078.47-1')
+        self.assertEqual(len(CORE.CHROME_SHA256), 64)
+        self.assertFalse(CORE.CLOUDFLARED_URL.endswith('/latest/download/cloudflared-linux-amd64'))
+        with tempfile.TemporaryDirectory() as folder:
+            sample = Path(folder) / 'sample'
+            sample.write_bytes(b'pc-free-t4')
+            good = hashlib.sha256(b'pc-free-t4').hexdigest()
+            CORE.require_sha256(sample, good)
+            self.assertTrue(sample.exists())
+            with self.assertRaisesRegex(RuntimeError, 'SHA-256'):
+                CORE.require_sha256(sample, '0' * 64)
+            self.assertFalse(sample.exists())
+
+    def test_selkies_21_profile_is_explicit(self):
+        source = (ROOT / 'scripts/selkies-desktop.py').read_text()
+        for flag in ('--congestion-control=false', '--frame-ancestors=self',
+                     '--use-paint-over-quality=false', '--second-screen=false',
+                     '--audio-bitrate=96000', '--audio-channels=2',
+                     '--rate-control-mode=cbr', '--keyframe-interval=0',
+                     '--video-streaming-mode=true', '--video-fullcolor=false',
+                     '--enable-resize=true'):
+            self.assertIn(flag, source)
+        self.assertNotIn("install_pixelflux_libxcb_guard", source)
+        self.assertIn('def verify_pixelflux(', source)
+        self.assertIn('Virtual MAX_WIDTH MAX_HEIGHT', source)
+        self.assertIn('max(width, 1920)', source)
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        _, start = find_cell(document, '# @title Iniciar PC-Free-T4')
+        self.assertIn('BACKPRESSURE_QUEUE_SIZE = 120', ''.join(start['source']))
+
+    def test_game_environment_cell_is_real_and_clean(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        _, cell = find_cell(document, 'Entorno global de juegos')
+        source = ''.join(cell['source'])
+        for good in ('DXVK_SHADER_CACHE_PATH', 'VKD3D_SHADER_CACHE_PATH',
+                     "'.config' / 'pcfree'", "'game.env'"):
+            self.assertIn(good, source)
+        for bad in ('DXVK_ASYNC', 'VKD3D_SHADER_CACHE=', 'PROTON_NO_ESYNC',
+                    'PROTON_NO_FSYNC', 'WINEPREFIX', 'MESA_VK_WSI_PRESENT_MODE'):
+            self.assertNotIn(bad, source)
+
+    def test_ge_proton_and_proton_test_cells(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        _, ge_cell = find_cell(document, 'Instalar GE-Proton')
+        _, probe_cell = find_cell(document, 'Pruebas de compatibilidad de Proton')
+        ge = ''.join(ge_cell['source'])
+        probe = ''.join(probe_cell['source'])
+        self.assertIn('INSTALL_GE_PROTON = False', ge)
+        self.assertIn('install_ge_proton', ge)
+        for token in ('-m32', '-m64', 'vkCreateInstance', 'GE-Proton11-11',
+                      "'run'", "'cmd'"):
+            self.assertIn(token, probe)
+        self.assertIn('STEAM_COMPAT_DATA_PATH', probe)
 
     def test_security_static(self):
         source = (ROOT / 'scripts/selkies-desktop.py').read_text()
@@ -330,9 +389,11 @@ class SelkiesTests(unittest.TestCase):
         # the unpatched SOURCES and every [OK] printed by the cell is a lie.
         document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
         env = {}
-        exec(compile(''.join(document['cells'][2]['source']), 'cell2', 'exec'), env)
+        _, kernel_cell = find_cell(document, 'Cargar núcleo interno')
+        _, preparation_cell = find_cell(document, 'Preparación completa del escritorio')
+        exec(compile(''.join(kernel_cell['source']), 'cell2', 'exec'), env)
         original = env['SOURCES']['selkies-desktop.py']
-        preparation = ''.join(document['cells'][3]['source'])
+        preparation = ''.join(preparation_cell['source'])
         exec(compile(preparation, 'preparation', 'exec'), env)
         patched = env['SOURCES']['selkies-desktop.py']
         self.assertNotEqual(patched, original)
@@ -382,59 +443,10 @@ class SelkiesTests(unittest.TestCase):
             self.assertEqual(core['add_i386_nvidia']('580.82.07', '/fictional', '/libraries'),
                              '/libraries')
 
-    def test_audio_cell_runs_and_reports_a_tuned_session(self):
-        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
-        source = ''.join(document['cells'][9]['source'])
-        with tempfile.TemporaryDirectory() as folder:
-            base = Path(folder)
-            home = base / 'home'
-            home.mkdir()
-            (base / 'session.json').write_text(json.dumps({
-                'user': 'pcfree-browser', 'home': str(home), 'env': {},
-                'processes': {'selkies': {'pid': 4242}}}))
-            source = source.replace("BASE = Path('/tmp/pcfree-selkies')",
-                                    f"BASE = Path({str(base)!r})")
-            environ = (b'SELKIES_AUDIO_BITRATE=96000\0'
-                       b'SELKIES_AUDIO_FRAME_DURATION_MS=20\0'
-                       b'SELKIES_AUDIO_REDUNDANCY_DISTANCE=2\0')
-            cmdline = b'/opt/selkies/bin/selkies\0--backpressure-queue-size=30\0'
-
-            def fake_pactl(argv, **kwargs):
-                text = ' '.join(argv)
-                if ' info' in text:
-                    out = ('Server Name: pulseaudio\n'
-                           'Default Sample Specification: s16le 2ch 48000Hz\n')
-                elif ' list ' in text:
-                    out = ('Sink #0\n\tName: output\n'
-                           '\tSample Specification: s16le 2ch 48000Hz\n')
-                elif 'get-sink-volume' in text:
-                    out = 'front-left: 65536 / 100% / -0.00 dB\n'
-                else:
-                    out = ''
-                return types.SimpleNamespace(returncode=0, stdout=out, stderr='')
-
-            def fake_read_bytes(self):
-                if str(self).endswith('/environ'):
-                    return environ
-                if str(self).endswith('/cmdline'):
-                    return cmdline
-                return b''
-
-            output = io.StringIO()
-            namespace = {'_core': {'audio_daemon_conf': CORE.audio_daemon_conf}}
-            with patch.object(subprocess, 'run', side_effect=fake_pactl), \
-                 patch.object(Path, 'read_bytes', fake_read_bytes), \
-                 patch.object(os, 'chown'), \
-                 patch('pwd.getpwnam', return_value=types.SimpleNamespace(pw_uid=1, pw_gid=1)), \
-                 contextlib.redirect_stdout(output):
-                exec(compile(source, 'audio-cell', 'exec'), namespace)
-            report = output.getvalue()
-            self.assertIn('Audio estable', report)
-            self.assertNotIn('[FAIL]', report)
-
     def test_cleanup_cell_keeps_active_tunnel_and_apt_metadata(self):
         document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
-        source = ''.join(document['cells'][5]['source'])
+        _, cell = find_cell(document, 'Liberar espacio')
+        source = ''.join(cell['source'])
         # Deleting the binary before checking pgrep would break the next start.
         self.assertLess(source.index("'pgrep'"),
                         source.index("clean(str(BASE / 'cloudflared')"))
