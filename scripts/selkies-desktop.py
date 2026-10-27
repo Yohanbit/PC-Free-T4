@@ -45,14 +45,16 @@ PACKAGES = ['xserver-xorg-core', 'xfce4-session', 'xfwm4', 'xfce4-panel',
             'xfdesktop4', 'xfce4-settings', 'thunar', 'xfce4-terminal',
             'dbus-x11', 'mesa-utils', 'vulkan-tools', 'x11-utils', 'x11-xserver-utils', 'xauth',
             'pulseaudio', 'pulseaudio-utils', 'ca-certificates', 'python3.12',
-            'libgtk-3-0t64', 'libdbus-glib-1-2', 'libasound2t64', 'zenity', 'sudo',
-            'gstreamer1.0-libav', 'gstreamer1.0-plugins-good',
-            'gstreamer1.0-plugins-bad', 'gstreamer1.0-plugins-ugly',
-            'libavcodec-extra', 'libva2', 'libva-drm2', 'libva-x11-2', 'libvdpau1',
-            'libvulkan1', 'libgl1', 'libegl1', 'libgles2', 'libopenal1',
-            'libsdl2-2.0-0', 'gcc-multilib', 'libc6-dev-i386',
-            'libx11-dev', 'libgl1-mesa-dev',
-            'xdg-utils', 'desktop-file-utils', 'fonts-liberation', 'wget']
+            'libgtk-3-0t64', 'libdbus-glib-1-2', 'libasound2t64', 'zenity', 'sudo']
+OPTIONAL_PACKAGES = [
+    'gstreamer1.0-libav', 'gstreamer1.0-plugins-good',
+    'gstreamer1.0-plugins-bad', 'gstreamer1.0-plugins-ugly',
+    'libavcodec-extra', 'libva2', 'libva-drm2', 'libva-x11-2', 'libvdpau1',
+    'libopenal1', 'libsdl2-2.0-0',
+    'xdg-utils', 'desktop-file-utils', 'fonts-liberation', 'wget',
+]
+TEST_PACKAGES = ['gcc-multilib', 'libc6-dev-i386', 'libx11-dev', 'libgl1-mesa-dev',
+                 'libx11-dev:i386', 'libgl1-mesa-dev:i386']
 I386_LIBRARIES = [
     'libgl1:i386', 'libglx0:i386', 'libglvnd0:i386', 'libegl1:i386',
     'libgles2:i386', 'libvulkan1:i386', 'libdrm2:i386', 'libgbm1:i386',
@@ -65,7 +67,6 @@ I386_LIBRARIES = [
     'libfreetype6:i386', 'libasound2t64:i386', 'libpulse0:i386',
     'libva2:i386', 'libva-drm2:i386', 'libva-x11-2:i386', 'libvdpau1:i386',
     'libopenal1:i386', 'libsdl2-2.0-0:i386', 'libstdc++6:i386',
-    'libx11-dev:i386', 'libgl1-mesa-dev:i386',
 ]
 AUDIO_SINK_ARGS = ['sink_name=output', 'rate=48000', 'channels=2',
                    'channel_map=front-left,front-right', 'format=s16le',
@@ -244,7 +245,7 @@ def safe_apt_install(packages, validated_local_deb=None):
     plan = capture(['apt-get', '-s', 'install', '-y', '--no-install-recommends', *packages], timeout=120)
     for line in plan.splitlines():
         if line.startswith('Remv '):
-            raise RuntimeError('APT propone eliminar paquetes; operación cancelada.')
+            raise RuntimeError(f'APT propone eliminar {line[5:].strip()}; operación cancelada.')
         if line.startswith('Inst '):
             name = line.split()[1].split(':')[0]
             if 'nvidia' in name or name.startswith(('linux-image', 'linux-modules', 'linux-headers')):
@@ -267,11 +268,32 @@ def safe_apt_install(packages, validated_local_deb=None):
            env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive'})
 
 
+def safe_optional_install(packages, label):
+    """Install optional extras without aborting the desktop on APT conflicts."""
+    try:
+        safe_apt_install(packages)
+        print(f'{label}: instalados en grupo.', flush=True)
+        return
+    except RuntimeError as exc:
+        print(f'Aviso: {label} se omite en grupo ({exc}); se intentará por paquete.', flush=True)
+    for package in packages:
+        try:
+            safe_apt_install([package])
+            print(f'  [OK] {package}', flush=True)
+        except RuntimeError as exc:
+            print(f'  [SKIP] {package}: {exc}', flush=True)
+
+
 def install_compat_libraries():
     """32-bit runtime libs for native games and Wine/Proton."""
     logged(['dpkg', '--add-architecture', 'i386'], 'i386-arch', timeout=120)
     logged(['apt-get', 'update', '-qq'], 'i386-update', timeout=240)
-    safe_apt_install(I386_LIBRARIES)
+    safe_optional_install(I386_LIBRARIES, 'Bibliotecas 32 bits')
+    safe_optional_install(TEST_PACKAGES, 'Herramientas de prueba 32/64 bits')
+
+
+def install_optional_packages():
+    safe_optional_install(OPTIONAL_PACKAGES, 'Códecs, fuentes y utilidades del navegador')
 
 
 def matching_version(madison, driver):
@@ -822,6 +844,7 @@ def bootstrap(chrome=True, framerate=60, bitrate=3000, width=960, height=540, ba
         with phase('Paquetes mínimos y Selkies oficial'):
             logged(['apt-get', 'update', '-qq'], timeout=240)
             safe_apt_install(PACKAGES)
+            install_optional_packages()
             install_compat_libraries()
             chrome_ok = False
             if chrome:

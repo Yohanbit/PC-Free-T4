@@ -345,6 +345,16 @@ class SelkiesTests(unittest.TestCase):
             self.assertIn(token, probe)
         self.assertIn('STEAM_COMPAT_DATA_PATH', probe)
 
+    def test_optional_install_does_not_abort_on_conflict(self):
+        calls = []
+        def attempt(packages):
+            calls.append(packages)
+            if len(calls) == 1 or packages == ['a']:
+                raise RuntimeError('APT propone eliminar libejemplo; operación cancelada.')
+        with patch.object(CORE, 'safe_apt_install', side_effect=attempt):
+            CORE.safe_optional_install(['a', 'b'], 'prueba')
+        self.assertEqual(calls, [['a', 'b'], ['a'], ['b']])
+
     def test_security_static(self):
         source = (ROOT / 'scripts/selkies-desktop.py').read_text()
         self.assertIn('--addr=127.0.0.1', source)

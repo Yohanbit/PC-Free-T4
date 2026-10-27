@@ -4,7 +4,7 @@
 
 Usar el cuaderno autocontenido publicado en `main` (`PC-Free-T4.ipynb`). Contiene el arranque y los opcionales. Esta versión no incluye celdas de respaldo: los mundos se exportan y restauran fuera de la libreta (ver `PERSONAL-DRIVE.md`). No ejecutar el instalador sobre otro Xorg activo.
 
-La configuración exige Ubuntu 24.04 amd64, una T4 y paquetes NVIDIA cuya versión upstream coincida exactamente con el controlador activo. Se usan los repositorios oficiales Ubuntu y NVIDIA CUDA para Ubuntu 24.04. Las bibliotecas se extraen sin instalar módulos, DKMS o controladores del kernel.
+La configuración exige Ubuntu 24.04 amd64, una T4 y paquetes NVIDIA cuya versión upstream coincida exactamente con el controlador activo. Se usan los repositorios oficiales Ubuntu y NVIDIA CUDA para Ubuntu 24.04. Las bibliotecas se extraen sin instalar módulos, DKMS o controladores del kernel. Los paquetes opcionales (códecs, 32 bits, Chrome y herramientas de prueba) se intentan por separado: si APT propone eliminar algo, ese paquete se omite y el escritorio continúa.
 
 Perfil gaming: resolución automática desde 960×540/60 FPS, Turbo, H.264/NVENC con CBR 4 Mbps y cola de 120 fragmentos. Audio a 48 kHz con `flat-volumes=no`, sink fijo estéreo, PulseAudio con `nice -10` y 120 fragmentos de cola para absorber los picos de NVENC sin cortar el sonido. Chrome 156.0.8078.47-1 usa un perfil independiente en `/tmp/pcfree-selkies/chrome-profile`, EGL NVIDIA y flags de bajo consumo; es el navegador predeterminado del escritorio. Revisar `chrome://gpu` y las estadísticas de Selkies para distinguir FPS de renderizado de FPS recibidos. La GPU no acelera todo el JavaScript ni convierte un juego limitado a 15 FPS en uno de 60.
 
