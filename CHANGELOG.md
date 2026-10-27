@@ -9,7 +9,7 @@
 - Se borran los instaladores `.deb`/archivos temporales al terminar y se limpia APT para liberar espacio; Chrome limita procesos y caché en disco.
 - Corregido el arranque: los paquetes base quedan en la lista mínima y los opcionales se instalan por separado; si APT propone eliminar algo, se omite ese paquete en vez de cancelar todo el escritorio.
 - Se retira la descarga del wheel de pixelflux 59c523a: 2.2.1 ya incorpora la declinación de NvFBC cuando `libX11` usa otra copia de `libxcb` (notas de pixelflux 2.2.0). El resto de parches P1, P2, P4-P22 se conserva.
-- Perfil explícito para Selkies 2.1: CBR, 4 Mbps, 60 FPS, 960×540, cola 30, congestión desactivada, `frame-ancestors=self`, paint-over desactivado, segunda pantalla desactivada y audio 96 kbps/20 ms/RED 2. Así los nuevos defaults no cambian el perfil sin medirlo.
+- Perfil explícito para Selkies 2.1: CBR, 4 Mbps, 60 FPS, 960×540, cola 120, congestión desactivada, `frame-ancestors=self`, paint-over desactivado, segunda pantalla desactivada y audio 96 kbps/20 ms/RED 2. Así los nuevos defaults no cambian el perfil sin medirlo.
 - Librerías de compatibilidad 32/64 bits, códecs GStreamer/VA-API/VDPAU, OpenAL/SDL2 y herramientas de compilación multilib.
 - Celda 11 reescrita: `DXVK_SHADER_CACHE_PATH` y `VKD3D_SHADER_CACHE_PATH` reales, sin `DXVK_ASYNC`, `VKD3D_SHADER_CACHE`, `PROTON_NO_ESYNC`, `PROTON_NO_FSYNC=0`, `WINEPREFIX` ni `MESA_VK_WSI_PRESENT_MODE`. El lanzador de Steam carga `~/.config/pcfree/game.env`.
 - GE-Proton11-11 se descarga bajo demanda (no al iniciar), con SHA-512 y extracción validada.
