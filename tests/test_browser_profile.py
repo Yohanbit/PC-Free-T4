@@ -16,6 +16,7 @@ assert '--use-gl=egl' in source and '--ignore-gpu-blocklist' in source
 assert '--renderer-process-limit=2' in source and '--process-per-site' in source
 assert '--disable-background-networking' in source
 assert 'google-chrome.desktop' in source
+assert "PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'" in source
 assert 'firefox' not in source.lower()
 assert "mapping['__EGL_VENDOR_LIBRARY_FILENAMES']" in source
 assert "SELKIES_VIDEO_STREAMING_MODE='true|locked'" in source

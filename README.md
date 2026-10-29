@@ -11,7 +11,7 @@ Pasos para iniciar el entorno virtual:
 1. Abrir la libreta en Google Colab mediante el enlace anterior.
 2. Configurar el entorno con GPU: **Entorno de ejecución → Cambiar tipo de entorno de ejecución → GPU T4 → Guardar**.
 3. Ejecutar la libreta: **Entorno de ejecución → Ejecutar todo**.
-4. Esperar a que la celda de inicio genere la URL del túnel junto con el usuario y la contraseña.
+4. Esperar a que la celda de inicio genere la URL del túnel junto con la cuenta y la contraseña.
 5. Abrir la URL en un navegador, ingresar las credenciales presentadas y seleccionar el botón de inicio de transmisión.
 
 ## Características
@@ -25,6 +25,7 @@ Pasos para iniciar el entorno virtual:
 - Soporte opcional para Steam, Heroic Games Launcher, Proton, Vulkan y utilidades del sistema.
 - Componentes fijados: Selkies 2.1.0, pixelflux 2.2.1, pcmflux 2.2.0, cloudflared 2026.10.3 y Chrome 156.0.8078.47-1.
 - GE-Proton11-11 bajo demanda y celda de pruebas Proton de 32/64 bits con OpenGL y Vulkan.
+- Instalador de `.deb` y `.AppImage` con descarga por URL, acceso en el escritorio y asociación de archivos.
 - Chrome con aceleración WebGL y WebGPU y navegador predeterminado del escritorio.
 
 ## Notas

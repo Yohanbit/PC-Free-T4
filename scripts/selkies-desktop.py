@@ -51,7 +51,7 @@ OPTIONAL_PACKAGES = [
     'gstreamer1.0-plugins-bad', 'gstreamer1.0-plugins-ugly',
     'libavcodec-extra', 'libva2', 'libva-drm2', 'libva-x11-2', 'libvdpau1',
     'libopenal1', 'libsdl2-2.0-0',
-    'xdg-utils', 'desktop-file-utils', 'fonts-liberation', 'wget',
+    'xdg-utils', 'desktop-file-utils', 'shared-mime-info', 'fonts-liberation', 'wget',
 ]
 TEST_PACKAGES = ['gcc-multilib', 'libc6-dev-i386', 'libx11-dev', 'libgl1-mesa-dev',
                  'libx11-dev:i386', 'libgl1-mesa-dev:i386']
@@ -376,7 +376,7 @@ def graphics(driver):
         )
     print(
         f'Controlador verificado en {len(actual_t4_versions)} T4(s): {driver}; '
-        'las bibliotecas de usuario permanecen aisladas del kernel.', flush=True
+        'las bibliotecas de la cuenta permanecen aisladas del kernel.', flush=True
     )
     return root, ':'.join(libraries)
 
@@ -388,7 +388,7 @@ def prepare_user(root, libraries):
         logged(['useradd', '--create-home', '--home-dir', str(BASE / 'home'), '--shell', '/bin/bash', USER])
         account = pwd.getpwnam(USER)
     if account.pw_uid == 0:
-        raise RuntimeError('El usuario de escritorio no puede ser root.')
+        raise RuntimeError('La cuenta de escritorio no puede ser root.')
     import grp
     groups = []
     for name in ('video', 'render'):
@@ -518,7 +518,7 @@ if len(sys.argv) < 2:
 settings = SETTINGS
 account = pwd.getpwnam(settings['user'])
 if os.geteuid() not in (0, account.pw_uid):
-    raise SystemExit('Usuario de escritorio requerido.')
+    raise SystemExit('Cuenta de escritorio requerido.')
 env = dict(os.environ)
 env.update(settings['env'])
 env.pop('LD_PRELOAD', None)
@@ -694,7 +694,8 @@ def chrome_profile(session):
     lines.append('WebBrowser=google-chrome')
     helpers.write_text('\n'.join(lines) + '\n')
     os.chown(helpers, account.pw_uid, account.pw_gid)
-    env = dict(session['env'], XDG_CURRENT_DESKTOP='XFCE')
+    env = dict(session['env'], XDG_CURRENT_DESKTOP='XFCE',
+               PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin')
     subprocess.run(as_user(['xdg-settings', 'set', 'default-web-browser',
                             'google-chrome.desktop']), env=env,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
@@ -706,7 +707,7 @@ def chrome_profile(session):
 def show_access():
     access = json.loads((BASE / 'access.json').read_text())
     print('\nAcceso privado — no guardar estas salidas en GitHub:', flush=True)
-    print('URL:', access['url'], '\nUsuario:', access['username'], '\nContraseña:', access['password'], flush=True)
+    print('URL:', access['url'], '\nCuenta:', access['username'], '\nContraseña:', access['password'], flush=True)
     state = BASE / 'session.json'
     settings = json.loads(state.read_text()).get('settings', {}) if state.exists() else {}
     fps, kbps = settings.get('framerate', 30), settings.get('bitrate', 2000)

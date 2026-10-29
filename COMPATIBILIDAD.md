@@ -41,6 +41,18 @@ Selkies 2.1 decodifica con WebCodecs sobre WebSockets y elige NvFBC automáticam
 
 NvFBC depende del driver y de que la GPU lo permita; si declina, pixelflux usa DRI3 o XShm y lo registra en el log. La decodificación por hardware se comprueba en el navegador (`chrome://gpu`, `about:support`); si el navegador no decodifica, el cliente usa la ruta de respaldo.
 
+## Aplicaciones .deb y .AppImage
+
+La celda “Instalador de .deb y .AppImage” crea el acceso **Descargar aplicación** y registra el manejador predeterminado para ambos formatos.
+
+- Acepta una URL HTTPS o un archivo local.
+- `.deb`: lo instala con el instalador validado del escritorio y crea un acceso directo si el paquete trae uno.
+- `.AppImage`: lo guarda en `~/.local/bin/apps`, extrae icono/nombre si es posible, lo marca ejecutable y crea accesos en el escritorio y en el menú.
+- Los archivos descargados se guardan en `~/Downloads`.
+- No se verifica la firma del editor; solo se acepta HTTPS y la extensión. Ejecutar un binario descargado es responsabilidad de quien lo elige.
+
+Si un archivo no abre con el instalador, abrir **Descargar aplicación** y pegar la URL, o ejecutar `pcfree-app-installer /ruta/archivo` desde una terminal del escritorio.
+
 ## Componentes y Proton
 
 - Selkies 2.1.0, pixelflux 2.2.1, pcmflux 2.2.0, cloudflared 2026.10.3 y Chrome 156.0.8078.47-1, con versiones fijas y SHA oficial.

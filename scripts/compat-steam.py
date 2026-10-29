@@ -279,7 +279,7 @@ def install_gamepads(session):
         raise RuntimeError('La instalación de mandos requiere root; las aplicaciones no.')
     account = pwd.getpwnam(session['user'])
     if account.pw_uid == 0:
-        raise ValueError('Los juegos deben ejecutarse como usuario normal.')
+        raise ValueError('Los juegos deben ejecutarse como cuenta normal.')
     home, runtime = Path(session['home']), Path(session['runtime'])
     if not home.is_absolute() or not runtime.is_absolute() or not home.is_dir() or not runtime.is_dir():
         raise ValueError('Preparar primero home y runtime absolutos del escritorio.')
@@ -330,7 +330,7 @@ set -eu
 if [ -r "$HOME/.config/pcfree/game.env" ]; then
   . "$HOME/.config/pcfree/game.env"
 fi
-if [ "$(id -u)" = 0 ]; then echo 'Steam debe ejecutarse como usuario normal.' >&2; exit 1; fi
+if [ "$(id -u)" = 0 ]; then echo 'Steam debe ejecutarse como cuenta normal.' >&2; exit 1; fi
 : "${HOME:?}" "${XDG_RUNTIME_DIR:?}" "${DISPLAY:?}" "${XAUTHORITY:?}"
 bus_ok() {
   dbus-send --bus="$1" --type=method_call --print-reply --dest=org.freedesktop.DBus \
@@ -445,7 +445,7 @@ def install_ge_proton(session):
 def install_steam(session):
     """Instalación explícita opcional, sin lanzar Steam ni modificar el estado global."""
     if os.geteuid() != 0:
-        raise RuntimeError('Ejecutar la celda instaladora como root; Steam abrirá como usuario normal.')
+        raise RuntimeError('Ejecutar la celda instaladora como root; Steam abrirá como cuenta normal.')
     required = ('user', 'home', 'runtime', 'display', 'xauthority', 'gpu_root',
                 'driver_version', 'env', 'run_launcher')
     missing = [key for key in required if key not in session]
@@ -453,7 +453,7 @@ def install_steam(session):
         raise ValueError('Estado incompleto: ' + ', '.join(missing))
     account = pwd.getpwnam(session['user'])
     if account.pw_uid == 0:
-        raise ValueError('El usuario de Steam no puede ser root.')
+        raise ValueError('La cuenta de Steam no puede ser root.')
     home = Path(session['home'])
     runtime = Path(session['runtime'])
     runner = Path(session['run_launcher'])
@@ -544,13 +544,13 @@ def install_steam(session):
     _owned_write(home / '.local/share/applications/pcfree-steam.desktop', desktop, account)
     if (home / 'Desktop').is_dir():
         _owned_write(home / 'Desktop/Steam.desktop', desktop, account, True)
-    # El usuario puede abrir desde el menú; no confiar en metadatos GVFS root.
+    # La cuenta puede abrir desde el menú; no confiar en metadatos GVFS root.
     result = {'installed': True, 'login_validated': False, 'version': version,
               'command': command, 'log': str(log), 'driver_version': driver,
               'nvidia_packages': specs, 'gamepads': bool(gamepads),
               'quarantine': quarantine, 'bwrap': bwrap}
     _owned_write(base / 'installation.json', json.dumps(result, indent=2), account)
-    # Todo el árbol privado debe ser modificable por el usuario del cliente.
+    # Todo el árbol privado debe ser modificable por la cuenta del cliente.
     for directory, directories, files in os.walk(base):
         os.chown(directory, account.pw_uid, account.pw_gid)
         for name in directories + files:

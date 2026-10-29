@@ -8,6 +8,9 @@
 - Se eliminan la celda de audio independiente, la celda de Xorg sin efecto y la prioridad duplicada; las prioridades quedan en una sola celda moderada.
 - Se borran los instaladores `.deb`/archivos temporales al terminar y se limpia APT para liberar espacio; Chrome limita procesos y caché en disco.
 - Corregido el arranque: los paquetes base quedan en la lista mínima y los opcionales se instalan por separado; si APT propone eliminar algo, se omite ese paquete en vez de cancelar todo el escritorio.
+- Corregida la comprobación de Chrome cuando `runuser` no está en `PATH`: se usa `/usr/sbin/runuser` o `shutil.which`, y el error no detiene la celda.
+- Textos de la libreta normalizados a “cuenta” en lugar de referencias a usuarios; sin nombres de herramientas ni créditos externos.
+- Añadido instalador gráfico de `.deb` y `.AppImage`: descarga HTTPS, instalación, acceso en el escritorio y registro MIME como manejador predeterminado.
 - Se retira la descarga del wheel de pixelflux 59c523a: 2.2.1 ya incorpora la declinación de NvFBC cuando `libX11` usa otra copia de `libxcb` (notas de pixelflux 2.2.0). El resto de parches P1, P2, P4-P22 se conserva.
 - Perfil explícito para Selkies 2.1: CBR, 4 Mbps, 60 FPS, 960×540, cola 120, congestión desactivada, `frame-ancestors=self`, paint-over desactivado, segunda pantalla desactivada y audio 96 kbps/20 ms/RED 2. Así los nuevos defaults no cambian el perfil sin medirlo.
 - Librerías de compatibilidad 32/64 bits, códecs GStreamer/VA-API/VDPAU, OpenAL/SDL2 y herramientas de compilación multilib.

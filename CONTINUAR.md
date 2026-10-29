@@ -10,7 +10,7 @@ Perfil gaming: resolución automática desde 960×540/60 FPS, Turbo, H.264/NVENC
 
 ## Estado local
 
-- `/tmp/pcfree-selkies/session.json`: usuario, entorno gráfico, rutas, controlador y procesos. No contiene contraseñas ni tokens de Colab.
+- `/tmp/pcfree-selkies/session.json`: cuenta, entorno gráfico, rutas, controlador y procesos. No contiene contraseñas ni tokens de Colab.
 - `/tmp/pcfree-selkies/access.json`: acceso temporal al escritorio; permisos `0600`.
 - `/tmp/pcfree-selkies/*.log`: instalación, Xorg, Vulkan, escritorio, audio, Selkies y túnel.
 - `/tmp/pcfree-selkies/chrome-status.txt`: instalación y perfil de Chrome.
@@ -23,7 +23,9 @@ Repetir el arranque conserva una sesión registrada y activa. Un estado incomple
 
 ## Aplicaciones
 
-`pcfree-run programa [argumentos]` utiliza el usuario del escritorio y sus variables de X11, audio, D-Bus y GPU. Los dispositivos virtuales se precargan únicamente en las aplicaciones, nunca en Selkies. La expansión `$LIB` selecciona las bibliotecas de 32/64 bits por proceso.
+`pcfree-run programa [argumentos]` utiliza la cuenta del escritorio y sus variables de X11, audio, D-Bus y GPU. Los dispositivos virtuales se precargan únicamente en las aplicaciones, nunca en Selkies. La expansión `$LIB` selecciona las bibliotecas de 32/64 bits por proceso.
+
+El instalador de `.deb` y `.AppImage` crea el acceso **Descargar aplicación**, acepta una URL HTTPS o un archivo local y registra el manejador predeterminado para ambos formatos. Los `.deb` se instalan con el instalador validado; los `.AppImage` se guardan en `~/.local/bin/apps` y se añaden al escritorio y al menú.
 
 Los instaladores no abren ventanas. Sober/Flatpak están activados por defecto en segundo plano; los demás son optativos. Cuando se seleccionan otros instaladores, esperan a Sober para no competir por APT. Steam mantiene cuentas, juegos y configuraciones; una reparación explícita pone en cuarentena únicamente los binarios redistribuibles del cliente. No ejecutar esa reparación mientras Steam esté abierto. GE-Proton11-11 se descarga desde su celda opcional, no al iniciar.
 

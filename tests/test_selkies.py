@@ -7,6 +7,7 @@ import inspect
 import io
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -354,6 +355,26 @@ class SelkiesTests(unittest.TestCase):
         with patch.object(CORE, 'safe_apt_install', side_effect=attempt):
             CORE.safe_optional_install(['a', 'b'], 'prueba')
         self.assertEqual(calls, [['a', 'b'], ['a'], ['b']])
+
+    def test_chrome_verification_cell_uses_absolute_runuser(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        _, cell = find_cell(document, 'Verificar Chrome y navegador predeterminado')
+        source = ''.join(cell['source'])
+        self.assertIn("PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'", source)
+        self.assertIn("shutil.which('runuser')", source)
+        self.assertIn('except (FileNotFoundError, subprocess.SubprocessError)', source)
+
+    def test_app_installer_cell_and_helper(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        _, cell = find_cell(document, 'Instalador de .deb y .AppImage')
+        source = ''.join(cell['source'])
+        for token in ('application/x-appimage', 'application/vnd.debian.binary-package',
+                      'APPIMAGE_EXTRACT_AND_RUN', 'pcfree-install-deb', 'xdg-mime',
+                      'Descargar aplicación', 'runuser'):
+            self.assertIn(token, source)
+        helper = re.search(r"helper\.write_text\(r'''(.*?)'''\)", source, re.S)
+        self.assertIsNotNone(helper)
+        ast.parse(helper.group(1))
 
     def test_security_static(self):
         source = (ROOT / 'scripts/selkies-desktop.py').read_text()
