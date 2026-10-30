@@ -307,7 +307,7 @@ class SelkiesTests(unittest.TestCase):
 
     def test_selkies_21_profile_is_explicit(self):
         source = (ROOT / 'scripts/selkies-desktop.py').read_text()
-        for flag in ('--congestion-control=false', '--frame-ancestors=self',
+        for flag in ("('true' if congestion_control else 'false')", '--frame-ancestors=self',
                      '--use-paint-over-quality=false', '--second-screen=false',
                      '--audio-bitrate=96000', '--audio-channels=2',
                      '--rate-control-mode=cbr', '--keyframe-interval=0',
@@ -366,15 +366,43 @@ class SelkiesTests(unittest.TestCase):
 
     def test_app_installer_cell_and_helper(self):
         document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
-        _, cell = find_cell(document, 'Instalador de .deb y .AppImage')
+        _, cell = find_cell(document, 'Instalador de .deb, .AppImage')
         source = ''.join(cell['source'])
         for token in ('application/x-appimage', 'application/vnd.debian.binary-package',
-                      'APPIMAGE_EXTRACT_AND_RUN', 'pcfree-install-deb', 'xdg-mime',
-                      'Descargar aplicación', 'runuser'):
+                      'application/x-rpm', 'APPIMAGE_EXTRACT_AND_RUN', 'pcfree-install-deb',
+                      'xdg-mime', 'Descargar aplicación', 'runuser', 'rpm2cpio',
+                      'install_tar', 'install_rpm', '.tar.gz'):
             self.assertIn(token, source)
         helper = re.search(r"helper\.write_text\(r'''(.*?)'''\)", source, re.S)
         self.assertIsNotNone(helper)
         ast.parse(helper.group(1))
+
+    def test_heroic_cell_installs_wine_and_game_dependencies(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        _, cell = find_cell(document, 'Instalar Heroic, Wine 9')
+        source = ''.join(cell['source'])
+        for token in ('wine32:i386', 'libwine:i386', 'winetricks', 'cabextract',
+                      'libvulkan1:i386', 'libgtk-3-0t64', 'libnss3', 'curl',
+                      'GE-Proton9-27', 'wineVersion', 'autoInstallDxvk',
+                      'autoInstallVkd3d', 'INSTALL_HEROIC_PROTON = True'):
+            self.assertIn(token, source)
+        self.assertNotIn('usuario', source.lower())
+        ast.parse(source)
+
+    def test_congestion_control_switch(self):
+        parameters = inspect.signature(CORE.bootstrap).parameters
+        self.assertIs(parameters['congestion_control'].default, False)
+        self.assertIn('congestion_control', "('true' if congestion_control else 'false')")
+        source = (ROOT / 'scripts/selkies-desktop.py').read_text()
+        self.assertIn("'--congestion-control=' + ('true' if congestion_control else 'false')", source)
+        self.assertIn("'congestion_control': congestion_control,", source)
+        with self.assertRaisesRegex(ValueError, 'congestion_control'):
+            CORE.bootstrap(congestion_control='yes')
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        _, start = find_cell(document, '# @title Iniciar PC-Free-T4')
+        cell = ''.join(start['source'])
+        self.assertIn('ENABLE_CONGESTION_CONTROL = False', cell)
+        self.assertIn('congestion_control=ENABLE_CONGESTION_CONTROL', cell)
 
     def test_security_static(self):
         source = (ROOT / 'scripts/selkies-desktop.py').read_text()
@@ -421,7 +449,7 @@ class SelkiesTests(unittest.TestCase):
         document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
         env = {}
         _, kernel_cell = find_cell(document, 'Cargar núcleo interno')
-        _, preparation_cell = find_cell(document, 'Preparación completa del escritorio')
+        _, preparation_cell = find_cell(document, 'Preparación del escritorio')
         exec(compile(''.join(kernel_cell['source']), 'cell2', 'exec'), env)
         original = env['SOURCES']['selkies-desktop.py']
         preparation = ''.join(preparation_cell['source'])
@@ -433,7 +461,8 @@ class SelkiesTests(unittest.TestCase):
                        'Option "HardDPMS" "false"',
                        'SELKIES_AUDIO_FRAME_DURATION_MS', 'pcfreeInputGuard = {version: 2',
                        "SELKIES_AUDIO_BITRATE='96000'", 'flat-volumes = no',
-                       'default-fragment-size-msec = 40'):
+                       'default-fragment-size-msec = 40',
+                       "pcfree-install-deb' + chr(10)"):
             self.assertIn(marker, patched)
         self.assertTrue(callable(env['_core'].get('bootstrap')))
         tree = ast.parse(patched)

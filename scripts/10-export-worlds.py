@@ -19,7 +19,7 @@ for index,world in enumerate(world_candidates):
 CONFIRM_GAME_SAVED_AND_CLOSED=False
 SELECTED_WORLD_INDICES=[]
 if not CONFIRM_GAME_SAVED_AND_CLOSED or not SELECTED_WORLD_INDICES:
-    print('Sin respaldo todavía. Guardar y salir del mundo, editar confirmación e índices, y repetir solo esta celda.')
+    print('Sin respaldo todavía. Guardar y salir del mundo, editar confirmación e índices, y repetir solo la operación.')
 else:
     assert all(isinstance(i,int) and 0<=i<len(world_candidates) for i in SELECTED_WORLD_INDICES)
     stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')

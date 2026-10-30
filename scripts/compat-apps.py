@@ -352,7 +352,7 @@ def roblox_background(session):
 
 def install_app(option, session):
     if os.geteuid() != 0:
-        raise RuntimeError('Ejecuta esta celda de instalación desde Colab.')
+        raise RuntimeError('Requiere ejecutar desde Colab.')
     if option not in OPTIONS and option not in APPIMAGES and option not in EXPERIMENTAL:
         raise ValueError('Opción desconocida: ' + option)
     BASE.mkdir(exist_ok=True)

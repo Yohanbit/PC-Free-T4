@@ -9,8 +9,10 @@
 - Se borran los instaladores `.deb`/archivos temporales al terminar y se limpia APT para liberar espacio; Chrome limita procesos y caché en disco.
 - Corregido el arranque: los paquetes base quedan en la lista mínima y los opcionales se instalan por separado; si APT propone eliminar algo, se omite ese paquete en vez de cancelar todo el escritorio.
 - Corregida la comprobación de Chrome cuando `runuser` no está en `PATH`: se usa `/usr/sbin/runuser` o `shutil.which`, y el error no detiene la celda.
-- Textos de la libreta normalizados a “cuenta” en lugar de referencias a usuarios; sin nombres de herramientas ni créditos externos.
-- Añadido instalador gráfico de `.deb` y `.AppImage`: descarga HTTPS, instalación, acceso en el escritorio y registro MIME como manejador predeterminado.
+- Añadido instalador gráfico de `.deb`, `.AppImage`, `.tar`, `.tar.gz` y `.rpm`: descarga HTTPS o archivo local, instalación/extracción, acceso en el escritorio y registro MIME.
+- Interruptor `ENABLE_CONGESTION_CONTROL` en la celda de inicio, desactivado por defecto. Con `True` se pasa `--congestion-control=true` a Selkies (CBR adaptativo por pérdida y RTT); con `False` se mantiene `--congestion-control=false`, el comportamiento anterior.
+- Heroic: instalación de Wine 9 del sistema, dependencias de Heroic, bibliotecas de juego de 32 bits y GE-Proton9-27 en su selector. Se corrige la configuración `wineVersion` si estaba vacía o “Not Found” y se activan DXVK/VKD3D automáticos.
+- Corregida la regla `sudoers` de `pcfree-install-deb`: terminación con salto de línea real (`chr(10)`) y validación con `visudo`.
 - Se retira la descarga del wheel de pixelflux 59c523a: 2.2.1 ya incorpora la declinación de NvFBC cuando `libX11` usa otra copia de `libxcb` (notas de pixelflux 2.2.0). El resto de parches P1, P2, P4-P22 se conserva.
 - Perfil explícito para Selkies 2.1: CBR, 4 Mbps, 60 FPS, 960×540, cola 120, congestión desactivada, `frame-ancestors=self`, paint-over desactivado, segunda pantalla desactivada y audio 96 kbps/20 ms/RED 2. Así los nuevos defaults no cambian el perfil sin medirlo.
 - Librerías de compatibilidad 32/64 bits, códecs GStreamer/VA-API/VDPAU, OpenAL/SDL2 y herramientas de compilación multilib.
@@ -32,14 +34,14 @@
 ## 2026-10-12 · perfil gaming NVIDIA
 - Perfil predeterminado 720p/60 FPS objetivo, H.264 NVENC cuando está disponible, Turbo y CBR 5 Mbps. Selección GPU NVIDIA y preferencia de codificación CPU desactivada.
 - Firefox con perfil dedicado, WebRender/WebGL y EGL NVIDIA aislado. No modifica cuentas de otros perfiles ni desactiva sandbox.
-- Botón Jugar en cada nueva sesión: solicita captura con una acción del usuario; no fuerza permisos del navegador.
+- Botón Jugar en cada nueva sesión: solicita captura con una acción de la cuenta; no fuerza permisos del navegador.
 - El objetivo de transmisión no equivale a FPS del juego. Rendimiento de aplicaciones y captura desde Android.
 
  
 ## 2026-10-12 · escritorio HTML5 y arranque mínimo
 - Sustituido el flujo de acceso anterior por Selkies 2.0 y túnel HTTPS HTTP/2 autenticado.
 - Cuadernos autocontenidos con fuentes embebidas, credenciales nuevas por sesión y salidas limpias.
-- Escritorio 720p sin compositor; usuario no-root, D-Bus persistente y audio virtual autenticado.
+- Escritorio 720p sin compositor; cuenta no-root, D-Bus persistente y audio virtual autenticado.
 - OpenGL y Vulkan con bibliotecas NVIDIA exactas y aisladas; validación del renderizador antes de publicar el acceso.
 - Firefox en segundo plano, accesos preparados y ninguna aplicación abierta por el instalador.
 - Steam oficial opcional con soporte multiarch y cuarentena limitada de binarios. Inicio de sesión aún no validado.

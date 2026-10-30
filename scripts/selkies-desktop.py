@@ -715,7 +715,8 @@ def show_access():
     encoder = settings.get('encoder', 'h264enc')
     cpu_encode = str(settings.get('use_cpu', False)).lower()
     queue_size = settings.get('backpressure_queue_size', 120)
-    print(f'{resolution} · {encoder} · use-cpu={cpu_encode} · cola={queue_size} · {fps} FPS · {kbps} kbps CBR; NVENC se confirma en TX · Diagnóstico.')
+    congestion = 'activa' if settings.get('congestion_control') else 'desactivada'
+    print(f'{resolution} · {encoder} · use-cpu={cpu_encode} · cola={queue_size} · {fps} FPS · {kbps} kbps CBR · congestión {congestion}; NVENC se confirma en TX · Diagnóstico.')
     chrome = 'instalado, perfil aislado' if settings.get('chrome') else 'desactivado'
     print(f'Registros: {BASE} | Chrome: {chrome}, sin abrir ventanas.')
 
@@ -816,15 +817,18 @@ def verify_pixelflux(python):
     print(f'Pixelflux {version} verificado: {module}', flush=True)
 
 
-def bootstrap(chrome=True, framerate=60, bitrate=3000, width=960, height=540, backpressure_queue_size=120):
+def bootstrap(chrome=True, framerate=60, bitrate=3000, width=960, height=540,
+              backpressure_queue_size=120, congestion_control=False):
     if (
         not isinstance(framerate, int) or not 1 <= framerate <= 60
         or not isinstance(bitrate, int) or not 500 <= bitrate <= 20000
         or not isinstance(width, int) or not 320 <= width <= 3840
         or not isinstance(height, int) or not 240 <= height <= 2160
         or not isinstance(backpressure_queue_size, int) or not 1 <= backpressure_queue_size <= 100000
+        or not isinstance(congestion_control, bool)
     ):
-        raise ValueError('FPS: 1–60; bitrate: 500–20000 kbps; resolución: 320–3840 × 240–2160; cola: 1–100000.')
+        raise ValueError('FPS: 1–60; bitrate: 500–20000 kbps; resolución: 320–3840 × 240–2160; '
+                         'cola: 1–100000; congestion_control: booleano.')
     BASE.mkdir(mode=0o755, exist_ok=True)
     with (BASE / 'bootstrap.lock').open('w') as lock:
         try:
@@ -895,6 +899,7 @@ def bootstrap(chrome=True, framerate=60, bitrate=3000, width=960, height=540, ba
                 'encoder': 'h264enc', 'use_cpu': False,
                 'backpressure_queue_size': backpressure_queue_size,
                 'rate_control_mode': 'cbr', 'enable_resize': True,
+                'congestion_control': congestion_control,
             }
             desktop_files(session)
             if chrome_ok:
@@ -1036,7 +1041,8 @@ EndSection
                             '--rate-control-mode=cbr', '--keyframe-interval=0',
                             '--video-streaming-mode=true', '--video-fullcolor=false',
                             '--enable-resize=true', f'--backpressure-queue-size={backpressure_queue_size}',
-                            '--congestion-control=false', '--frame-ancestors=self',
+                            '--congestion-control=' + ('true' if congestion_control else 'false'),
+                            '--frame-ancestors=self',
                             '--use-paint-over-quality=false', '--second-screen=false',
                             '--audio-enabled=true', '--audio-bitrate=96000',
                             '--audio-channels=2', '--audio-device-name=output.monitor',

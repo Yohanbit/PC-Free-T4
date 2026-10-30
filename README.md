@@ -25,8 +25,9 @@ Pasos para iniciar el entorno virtual:
 - Soporte opcional para Steam, Heroic Games Launcher, Proton, Vulkan y utilidades del sistema.
 - Componentes fijados: Selkies 2.1.0, pixelflux 2.2.1, pcmflux 2.2.0, cloudflared 2026.10.3 y Chrome 156.0.8078.47-1.
 - GE-Proton11-11 bajo demanda y celda de pruebas Proton de 32/64 bits con OpenGL y Vulkan.
-- Instalador de `.deb` y `.AppImage` con descarga por URL, acceso en el escritorio y asociación de archivos.
+- Instalador de `.deb`, `.AppImage`, `.tar`, `.tar.gz` y `.rpm` con descarga por URL, acceso en el escritorio y asociación de archivos.
 - Chrome con aceleración WebGL y WebGPU y navegador predeterminado del escritorio.
+- Heroic con Wine 9, Proton 9 y las dependencias de ejecución de juegos.
 
 ## Notas
 

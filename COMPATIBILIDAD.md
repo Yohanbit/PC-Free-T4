@@ -41,17 +41,31 @@ Selkies 2.1 decodifica con WebCodecs sobre WebSockets y elige NvFBC automáticam
 
 NvFBC depende del driver y de que la GPU lo permita; si declina, pixelflux usa DRI3 o XShm y lo registra en el log. La decodificación por hardware se comprueba en el navegador (`chrome://gpu`, `about:support`); si el navegador no decodifica, el cliente usa la ruta de respaldo.
 
-## Aplicaciones .deb y .AppImage
+## Aplicaciones .deb, .AppImage, .tar y .rpm
 
-La celda “Instalador de .deb y .AppImage” crea el acceso **Descargar aplicación** y registra el manejador predeterminado para ambos formatos.
+La celda “Instalador de .deb, .AppImage, .tar y .rpm” crea el acceso **Descargar aplicación** y registra el manejador predeterminado para esos formatos.
 
 - Acepta una URL HTTPS o un archivo local.
 - `.deb`: lo instala con el instalador validado del escritorio y crea un acceso directo si el paquete trae uno.
 - `.AppImage`: lo guarda en `~/.local/bin/apps`, extrae icono/nombre si es posible, lo marca ejecutable y crea accesos en el escritorio y en el menú.
+- `.tar`, `.tar.gz`, `.tgz`, `.tar.xz` y `.tar.bz2`: se extraen en `~/.local/bin/apps`; se crea un acceso al ejecutable o al `.desktop` encontrado.
+- `.rpm`: se extrae con `rpm2cpio` y `cpio` en `~/.local/bin/apps`; requiere esos comandos y no resuelve dependencias RPM.
 - Los archivos descargados se guardan en `~/Downloads`.
-- No se verifica la firma del editor; solo se acepta HTTPS y la extensión. Ejecutar un binario descargado es responsabilidad de quien lo elige.
+- Se acepta HTTPS y la extensión del archivo. La firma del editor no forma parte de la validación del proyecto.
 
-Si un archivo no abre con el instalador, abrir **Descargar aplicación** y pegar la URL, o ejecutar `pcfree-app-installer /ruta/archivo` desde una terminal del escritorio.
+Si un archivo no abre con el instalador, abrir **Descargar aplicación**, elegir URL o archivo local, o ejecutar `pcfree-app-installer /ruta/archivo` desde una terminal del escritorio.
+
+## Heroic, Wine y Proton
+
+La celda de Heroic instala el `.deb` oficial y añade:
+
+- Wine 9 del sistema (`wine`, `wine64`, `wine32:i386`, `libwine` y `libwine:i386`) con `winetricks`, `cabextract`, `7zip`, `unzip` y `xz-utils`.
+- Dependencias de Heroic: `libgtk-3-0t64`, `libnotify4`, `libnss3`, `libxss1`, `libxtst6`, `libatspi2.0-0t64`, `libsecret-1-0`, `libuuid1`, `curl`, `libfuse2t64` y `bubblewrap`.
+- Bibliotecas de juego de 32 bits: OpenGL, EGL, Vulkan, X11, XCB, audio, SDL2 y OpenAL.
+- GE-Proton9-27 en `~/.config/heroic/tools/proton`, con SHA-512, para que aparezca en el selector de Heroic.
+- Configuración existente de Heroic: si `wineVersion` estaba vacío o era “Not Found”, se sustituye por Wine del sistema; se activan DXVK, VKD3D y NVAPI automáticos.
+
+Si Heroic ya estaba abierto, cerrarlo y volver a abrirlo. En Ajustes > Wine deben aparecer **Wine 9** y **GE-Proton9-27**.
 
 ## Componentes y Proton
 
@@ -60,6 +74,7 @@ Si un archivo no abre con el instalador, abrir **Descargar aplicación** y pegar
 - La celda de pruebas Proton comprueba OpenGL y Vulkan de 32/64 bits y crea prefijos Proton de 64 y 32 bits. No usa Wine suelto ni perfiles por juego.
 - DXVK y VKD3D-Proton son parte del runtime de Proton/GE; no se instalan sueltos.
 - La resolución de Selkies es automática desde 960×540 inicial; la cola es de 120 fragmentos para absorber hipos sin descartar audio.
+- El control de congestión se elige en la celda de inicio con `ENABLE_CONGESTION_CONTROL`, desactivado por defecto. Activo, adapta el bitrate CBR a la pérdida y al RTT; inactivo, mantiene el bitrate fijo y la latencia depende del enlace.
 
 ## Parches P1-P22
 
