@@ -488,7 +488,7 @@ class SelkiesTests(unittest.TestCase):
         cell = ''.join(start['source'])
         for token in ('FSR_UPSCALING = False', 'FSR_STRENGTH = 2',
                       'fsr=FSR_UPSCALING', 'fsr_strength=FSR_STRENGTH',
-                      'FSR 2 y 3 son'):
+                      'FSR 2/3 dependen del juego o un mod'):
             self.assertIn(token, cell)
 
     def test_language_server_watchdog(self):
