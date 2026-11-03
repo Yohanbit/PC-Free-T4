@@ -33,6 +33,12 @@ SELKIES_DEB_VERSION = '2.1.0-1~ubuntu24.04'
 SELKIES_DEB_SHA256 = 'cedba7a9d8bb4d07fd2b2139a518dc2c03452e0f0254c5bb088426623e2027f3'
 SELKIES_URL = ('https://github.com/selkies-project/selkies/releases/download/'
                f'{SELKIES_VERSION}/selkies-{SELKIES_VERSION}-ubuntu24.04-amd64.deb')
+SELKIES_SRC_URL = ('https://github.com/selkies-project/selkies/archive/refs/tags/'
+                   f'{SELKIES_VERSION}.tar.gz')
+SELKIES_SRC_SHA256 = '67eaae6f175df845f8dd7fffc58911dcaa5b9f07150f129e314ca45d47405b40'
+GAMEPAD_TRIPLETS = {'amd64': 'x86_64-linux-gnu', 'i386': 'i386-linux-gnu'}
+FAKE_UDEV_PACKAGES = ['build-essential', 'gcc-multilib', 'libc6-dev-i386',
+                      'libudev1', 'libudev1:i386']
 CLOUDFLARED_VERSION = '2026.10.3'
 CLOUDFLARED_SHA256 = '053b80b0a23031a038fdbf3c073f59f82b8f1f152aa67971d7383ffafc0dbab0'
 CLOUDFLARED_URL = ('https://github.com/cloudflare/cloudflared/releases/download/'
@@ -435,8 +441,189 @@ def prepare_user(root, libraries):
             'SELKIES_INTERPOSER', 'DBUS_SESSION_BUS_ADDRESS')
     session = dict(user=USER, home=str(home), runtime=str(runtime), display=DISPLAY,
                    xauthority=str(authority), gpu_root=str(root),
+                   fake_udev_root=str(BASE / 'fake-udev'),
                    env={key: env[key] for key in keep}, run_launcher='/usr/local/bin/pcfree-run')
     return session, env
+
+
+def apply_fps_cap(session, env, fps_cap, fsr=False, fsr_strength=2):
+    """Frame-rate limit, shader-stutter tuning and Wine FSR upscaling.
+
+    Keys verified against DXVK 3.1: dxvk.maxFrameRate feeds d3d9 and dxgi, and
+    dxvk.numCompilerThreads / dxvk.enableGraphicsPipelineLibrary exist.
+    DXVK_FRAME_RATE and the async pipeline patch were removed in DXVK 2.0;
+    graphics pipeline libraries are the supported replacement for the stutter
+    that patch used to hide. WINE_FULLSCREEN_FSR is the wine-proton spatial
+    upscaler (FSR 1.0): render below resolution and scale on the GPU. The
+    temporal FSR 2/3 needs support inside the game or a mod. Strength 0..5.
+    """
+    account = pwd.getpwnam(USER)
+    config = Path(session['home']) / '.config' / 'dxvk' / 'dxvk.conf'
+    config.parent.mkdir(parents=True, exist_ok=True)
+    lines = []
+    if fps_cap:
+        lines += [f'dxvk.maxFrameRate = {fps_cap}',
+                  f'd3d9.maxFrameRate = {fps_cap}',
+                  f'dxgi.maxFrameRate = {fps_cap}']
+    else:
+        lines.append('# Sin limite de fotogramas por segundo.')
+    # One compiler thread leaves a core for the game: Colab T4 exposes two.
+    lines += ['dxvk.enableGraphicsPipelineLibrary = Auto',
+              'dxvk.numCompilerThreads = 1',
+              'dxvk.tearFree = False']
+    config.write_text('\n'.join(lines) + '\n')
+    config.chmod(0o644)
+    env['DXVK_CONFIG_FILE'] = str(config)
+    session['env']['DXVK_CONFIG_FILE'] = str(config)
+    cache = Path(session['home']) / '.cache' / 'pcfree' / 'vkd3d'
+    cache.mkdir(parents=True, exist_ok=True)
+    for key, value in (('VKD3D_CONFIG', 'pipeline_library_app_cache'),
+                       ('VKD3D_SHADER_CACHE_PATH', str(cache))):
+        env[key] = value
+        session['env'][key] = value
+    if fps_cap:
+        env['VKD3D_FRAME_RATE'] = str(fps_cap)
+        session['env']['VKD3D_FRAME_RATE'] = str(fps_cap)
+    else:
+        env.pop('VKD3D_FRAME_RATE', None)
+        session['env'].pop('VKD3D_FRAME_RATE', None)
+    for key, value in (('WINE_FULLSCREEN_FSR', '1' if fsr else None),
+                       ('WINE_FULLSCREEN_FSR_STRENGTH',
+                        str(fsr_strength) if fsr else None)):
+        if value is None:
+            env.pop(key, None)
+            session['env'].pop(key, None)
+        else:
+            env[key] = value
+            session['env'][key] = value
+    for item in (config.parent, config, cache):
+        if Path(item).exists():
+            os.chown(item, account.pw_uid, account.pw_gid)
+    return config
+
+
+def elf_arch(path):
+    """Return 'amd64' or 'i386' from the ELF header, or None."""
+    try:
+        head = Path(path).read_bytes()[:20]
+    except OSError:
+        return None
+    if len(head) < 20 or head[:4] != b'\x7fELF':
+        return None
+    if head[4] == 2 and head[18:20] == b'\x3e\x00':
+        return 'amd64'
+    if head[4] == 1 and head[18:20] == b'\x03\x00':
+        return 'i386'
+    return None
+
+
+def gamepad_preload(root):
+    """Interposer and fake-udev preload paths, plus the architectures present.
+
+    /dev/uinput does not exist in Colab, so Selkies cannot register kernel
+    gamepads: the interposer serves the pads over its sockets and fake-udev is
+    what lets libudev consumers (Chrome, Electron, SDL2) enumerate them.
+    A 64-bit fake-udev alone is enough for 64-bit applications; a missing i386
+    build only prints an ld.so warning inside 32-bit children.
+    """
+    root = Path(root)
+    interposer = '/usr/$LIB/selkies_input_interposer.so'
+    if not (Path('/usr/lib') / GAMEPAD_TRIPLETS['amd64'] /
+            'selkies_input_interposer.so').is_file():
+        interposer = None
+    arches = [arch for arch, triplet in GAMEPAD_TRIPLETS.items()
+              if (root / 'lib' / triplet / 'libudev.so.1').is_file()]
+    fake = str(root / '$LIB' / 'libudev.so.1') if 'amd64' in arches else None
+    return interposer, fake, arches
+
+
+def provision_gamepads(root=None):
+    """Build the pinned fake-udev; 64-bit first so a 32-bit failure is not fatal.
+
+    Never fatal: a missing build tool leaves the desktop running with the SDL
+    fallback declared by pcfree-run.
+    """
+    root = Path(root or BASE / 'fake-udev')
+    interposer, fake, arches = gamepad_preload(root)
+    if interposer and 'amd64' in arches and 'i386' in arches:
+        print('Mandos: interposer y fake-udev ya presentes.', flush=True)
+        return {'active': True, 'root': str(root), 'interposer': interposer,
+                'fake_udev': fake, 'architectures': arches, 'built': False}
+    built = []
+    try:
+        logged(['dpkg', '--add-architecture', 'i386'], 'gamepad-arch', timeout=120)
+        safe_optional_install(FAKE_UDEV_PACKAGES, 'Dependencias de compilación para mandos')
+        archive = BASE / 'selkies-src.tar.gz'
+        download(SELKIES_SRC_URL, archive)
+        require_sha256(archive, SELKIES_SRC_SHA256)
+        work = BASE / 'fake-udev-build'
+        shutil.rmtree(work, ignore_errors=True)
+        work.mkdir(parents=True, exist_ok=True)
+        prefix = f'selkies-{SELKIES_VERSION}/addons/fake-udev/'
+        with tarfile.open(archive) as source:
+            members = [member for member in source.getmembers()
+                       if member.name.startswith(prefix)]
+            if not members:
+                raise RuntimeError('el archivo oficial no contiene fake-udev')
+            for member in members:
+                path = Path(member.name)
+                if '..' in path.parts or path.is_absolute():
+                    raise RuntimeError('entrada no segura en el archivo')
+                if member.issym() or member.islnk():
+                    raise RuntimeError('enlace no admitido en el archivo')
+                if not (member.isfile() or member.isdir()):
+                    raise RuntimeError('tipo de entrada no admitido')
+            source.extractall(work, members=members)
+        build = work / prefix
+        # 64 bits primero: es el que usan Chrome, Heroic y los juegos nativos.
+        targets = (('amd64', 'all', 'libudev.so.1.0.0-fake'),
+                   ('i386', 'all32', 'libudev_x86.so.1.0.0-fake'))
+        owner = pwd.getpwnam(USER)
+        for arch, target, name in targets:
+            triplet = GAMEPAD_TRIPLETS[arch]
+            destination = root / 'lib' / triplet
+            if (destination / 'libudev.so.1').is_file():
+                built.append(arch)
+                continue
+            try:
+                logged(['make', '-C', str(build), target], f'fake-udev-{arch}', timeout=300)
+            except Exception as exc:
+                print(f'AVISO: fake-udev {arch} no compiló ({exc}).', flush=True)
+                continue
+            artefact = build / name
+            if elf_arch(artefact) != arch:
+                print(f'AVISO: {name} no es un ELF {arch}; se omite.', flush=True)
+                continue
+            destination.mkdir(parents=True, exist_ok=True)
+            staged = destination / 'libudev.so.1.new'
+            shutil.copy2(artefact, staged)
+            staged.replace(destination / 'libudev.so.1')
+            for item in (root, root / 'lib', destination, destination / 'libudev.so.1'):
+                os.chown(item, owner.pw_uid, owner.pw_gid)
+            built.append(arch)
+        inputs = Path('/dev/input')
+        if not inputs.exists():
+            inputs.mkdir(mode=0o1777)
+        inputs.chmod(0o1777)
+        archive.unlink(missing_ok=True)
+        shutil.rmtree(work, ignore_errors=True)
+    except Exception as exc:
+        print(f'AVISO: fake-udev no disponible ({exc}); mandos solo por SDL.', flush=True)
+        shutil.rmtree(BASE / 'fake-udev-build', ignore_errors=True)
+        return {'active': False, 'root': str(root), 'interposer': interposer,
+                'fake_udev': None, 'architectures': built, 'built': bool(built),
+                'error': str(exc)}
+    interposer, fake, arches = gamepad_preload(root)
+    active = bool(interposer and fake)
+    if active:
+        missing = [arch for arch in GAMEPAD_TRIPLETS if arch not in arches]
+        extra = f'; falta {", ".join(missing)}' if missing else ''
+        print(f'Mandos: interposer y fake-udev {", ".join(arches)} listos en {root}{extra}.',
+              flush=True)
+    else:
+        print('AVISO: interposer o fake-udev incompletos tras compilar.', flush=True)
+    return {'active': active, 'root': str(root), 'interposer': interposer,
+            'fake_udev': fake, 'architectures': arches, 'built': bool(built)}
 
 
 def vulkan_icd(root):
@@ -523,17 +710,21 @@ env = dict(os.environ)
 env.update(settings['env'])
 env.pop('LD_PRELOAD', None)
 # Ubuntu amd64 glibc $LIB: lib/x86_64-linux-gnu; i386: lib/i386-linux-gnu.
-if os.path.exists('/usr/lib/x86_64-linux-gnu/selkies_input_interposer.so'):
-    env['LD_PRELOAD'] = '/usr/$LIB/selkies_input_interposer.so'
-    fake = '/tmp/pcfree-selkies/fake-udev/'
+interposer_ready = all(os.path.exists('/usr/lib/'+arch+'/selkies_input_interposer.so')
+                       for arch in ('x86_64-linux-gnu', 'i386-linux-gnu'))
+if interposer_ready:
+    env['SELKIES_INTERPOSER'] = '/usr/$LIB/selkies_input_interposer.so'
+    env['LD_PRELOAD'] = env['SELKIES_INTERPOSER']
+    fake = (settings.get('fake_udev_root') or '/tmp/pcfree-selkies/fake-udev').rstrip('/') + '/'
     if all(os.path.exists(fake+'lib/'+arch+'/libudev.so.1')
-           for arch in ('x86_64-linux-gnu', 'i386-linux-gnu')):
+           for arch in ('x86_64-linux-gnu',)):
         env['LD_PRELOAD'] = fake+'$LIB/libudev.so.1:'+env['LD_PRELOAD']
         env.pop('SDL_JOYSTICK_DISABLE_UDEV', None)
         env.pop('SDL_JOYSTICK_DEVICE', None)
     else:
         env['SDL_JOYSTICK_DISABLE_UDEV'] = '1'
         env['SDL_JOYSTICK_DEVICE'] = ':'.join('/dev/input/event'+str(i) for i in range(1000,1004))
+        print('Aviso: fake-udev ausente en '+fake+'; mandos solo por SDL.', file=sys.stderr)
 else:
     print('Aviso: interposer no encontrado; mandos no preparados.', file=sys.stderr)
 if os.geteuid() == 0:
@@ -714,9 +905,10 @@ def show_access():
     resolution = settings.get('resolution', '960x540')
     encoder = settings.get('encoder', 'h264enc')
     cpu_encode = str(settings.get('use_cpu', False)).lower()
-    queue_size = settings.get('backpressure_queue_size', 120)
+    queue_size = settings.get('backpressure_queue_size', 90)
     congestion = 'activa' if settings.get('congestion_control') else 'desactivada'
-    print(f'{resolution} · {encoder} · use-cpu={cpu_encode} · cola={queue_size} · {fps} FPS · {kbps} kbps CBR · congestión {congestion}; NVENC se confirma en TX · Diagnóstico.')
+    cap = settings.get('fps_cap', 60)
+    print(f'{resolution} · {encoder} · use-cpu={cpu_encode} · cola={queue_size} · {fps} FPS · '          f'{kbps} kbps CBR · congestión {congestion} · cap {cap or "sin límite"} FPS; '          'NVENC se confirma en TX · Diagnóstico.')
     chrome = 'instalado, perfil aislado' if settings.get('chrome') else 'desactivado'
     print(f'Registros: {BASE} | Chrome: {chrome}, sin abrir ventanas.')
 
@@ -818,7 +1010,8 @@ def verify_pixelflux(python):
 
 
 def bootstrap(chrome=True, framerate=60, bitrate=3000, width=960, height=540,
-              backpressure_queue_size=120, congestion_control=False):
+              backpressure_queue_size=90, congestion_control=False, fps_cap=60,
+              fsr=False, fsr_strength=2):
     if (
         not isinstance(framerate, int) or not 1 <= framerate <= 60
         or not isinstance(bitrate, int) or not 500 <= bitrate <= 20000
@@ -826,9 +1019,13 @@ def bootstrap(chrome=True, framerate=60, bitrate=3000, width=960, height=540,
         or not isinstance(height, int) or not 240 <= height <= 2160
         or not isinstance(backpressure_queue_size, int) or not 1 <= backpressure_queue_size <= 100000
         or not isinstance(congestion_control, bool)
+        or not isinstance(fps_cap, int) or not 0 <= fps_cap <= 240
+        or not isinstance(fsr, bool)
+        or not isinstance(fsr_strength, int) or not 0 <= fsr_strength <= 5
     ):
         raise ValueError('FPS: 1–60; bitrate: 500–20000 kbps; resolución: 320–3840 × 240–2160; '
-                         'cola: 1–100000; congestion_control: booleano.')
+                         'cola: 1–100000; congestion_control: booleano; fps_cap: 0–240 (0 = sin límite); '
+                         'fsr: booleano; fsr_strength: 0–5.')
     BASE.mkdir(mode=0o755, exist_ok=True)
     with (BASE / 'bootstrap.lock').open('w') as lock:
         try:
@@ -878,6 +1075,7 @@ def bootstrap(chrome=True, framerate=60, bitrate=3000, width=960, height=540,
         with phase('Bibliotecas 3D exactas, aisladas del kernel'):
             root, libraries = graphics(driver)
             session, env = prepare_user(root, libraries)
+            apply_fps_cap(session, env, fps_cap, fsr, fsr_strength)
             for deb in (BASE / 'nvidia').glob('*.deb'):
                 deb.unlink(missing_ok=True)
             icd = vulkan_icd(root)
@@ -899,7 +1097,8 @@ def bootstrap(chrome=True, framerate=60, bitrate=3000, width=960, height=540,
                 'encoder': 'h264enc', 'use_cpu': False,
                 'backpressure_queue_size': backpressure_queue_size,
                 'rate_control_mode': 'cbr', 'enable_resize': True,
-                'congestion_control': congestion_control,
+                'congestion_control': congestion_control, 'fps_cap': fps_cap,
+                'fsr': fsr, 'fsr_strength': fsr_strength,
             }
             desktop_files(session)
             if chrome_ok:
@@ -1001,6 +1200,13 @@ EndSection
                                         env=env, capture_output=True, text=True, timeout=3)
                 return result.returncode == 0 and 'window id #' in result.stdout
             wait_for(desktop_ready, 'XFCE', [desktop])
+        with phase('Mandos: interposer y fake-udev'):
+            gamepads = provision_gamepads(session['fake_udev_root'])
+            session['gamepads'] = gamepads
+            session['env']['SELKIES_INTERPOSER'] = '/usr/$LIB/selkies_input_interposer.so'
+            env['SELKIES_INTERPOSER'] = session['env']['SELKIES_INTERPOSER']
+            print(f"Mandos: {'activos' if gamepads['active'] else 'sin fake-udev'}"
+                  f" · raíz {gamepads['root']}", flush=True)
         with phase('Selkies autenticado y túnel HTTPS HTTP/2'):
             access = dict(username='pcfree', password=secrets.token_urlsafe(24), url=None)
             private_json(BASE / 'access.json', access)

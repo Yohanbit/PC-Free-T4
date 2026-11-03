@@ -6,7 +6,7 @@ Usar el cuaderno autocontenido publicado en `main` (`PC-Free-T4.ipynb`). Contien
 
 La configuración exige Ubuntu 24.04 amd64, una T4 y paquetes NVIDIA cuya versión upstream coincida exactamente con el controlador activo. Se usan los repositorios oficiales Ubuntu y NVIDIA CUDA para Ubuntu 24.04. Las bibliotecas se extraen sin instalar módulos, DKMS o controladores del kernel. Los paquetes opcionales (códecs, 32 bits, Chrome y herramientas de prueba) se intentan por separado: si APT propone eliminar algo, ese paquete se omite y el escritorio continúa.
 
-Perfil gaming: resolución automática desde 960×540/60 FPS, Turbo, H.264/NVENC con CBR 4 Mbps y cola de 120 fragmentos. El control de congestión queda desactivado por defecto (`ENABLE_CONGESTION_CONTROL = False`); al activarlo, Selkies reduce el bitrate por debajo del valor pedido según pérdida y RTT, y lo recupera al mejorar el enlace. Audio a 48 kHz con `flat-volumes=no`, sink fijo estéreo, PulseAudio con `nice -10` y 120 fragmentos de cola para absorber los picos de NVENC sin cortar el sonido. Chrome 156.0.8078.47-1 usa un perfil independiente en `/tmp/pcfree-selkies/chrome-profile`, EGL NVIDIA y flags de bajo consumo; es el navegador predeterminado del escritorio. Revisar `chrome://gpu` y las estadísticas de Selkies para distinguir FPS de renderizado de FPS recibidos. La GPU no acelera todo el JavaScript ni convierte un juego limitado a 15 FPS en uno de 60.
+Perfil gaming: resolución automática desde 960×540/60 FPS, Turbo, H.264/NVENC con CBR 4 Mbps y cola de 90 fragmentos. El límite de render es `FPS_CAP = 60`: escribe `dxvk.maxFrameRate` en `~/.config/dxvk/dxvk.conf` y exporta `VKD3D_FRAME_RATE`, aplicado por `pcfree-run` a cualquier aplicación. FSR 1.0 (`WINE_FULLSCREEN_FSR`) se activa con `FSR_UPSCALING`; FSR 2 y 3 dependen del juego o de un mod. El control de congestión queda desactivado por defecto (`ENABLE_CONGESTION_CONTROL = False`); al activarlo, Selkies reduce el bitrate por debajo del valor pedido según pérdida y RTT, y lo recupera al mejorar el enlace. Audio a 48 kHz con `flat-volumes=no`, sink fijo estéreo, PulseAudio con `nice -10` y 120 fragmentos de cola para absorber los picos de NVENC sin cortar el sonido. Chrome 156.0.8078.47-1 usa un perfil independiente en `/tmp/pcfree-selkies/chrome-profile`, EGL NVIDIA y flags de bajo consumo; es el navegador predeterminado del escritorio. Revisar `chrome://gpu` y las estadísticas de Selkies para distinguir FPS de renderizado de FPS recibidos. La GPU no acelera todo el JavaScript ni convierte un juego limitado a 15 FPS en uno de 60.
 
 ## Estado local
 
@@ -22,6 +22,8 @@ Perfil gaming: resolución automática desde 960×540/60 FPS, Turbo, H.264/NVENC
 Repetir el arranque conserva una sesión registrada y activa. Un estado incompleto se detiene para diagnóstico: no mata ni reconstruye servicios automáticamente.
 
 ## Aplicaciones
+
+Los mandos se sirven por el interposer de Selkies y `fake-udev`, compilado en el arranque: `/dev/uinput` no existe en Colab, así que los pads no pueden ser dispositivos del kernel. `pcfree-run` precarga ambos en toda aplicación; una aplicación iniciada fuera de `pcfree-run` no verá el mando.
 
 `pcfree-run programa [argumentos]` utiliza la cuenta del escritorio y sus variables de X11, audio, D-Bus y GPU. Los dispositivos virtuales se precargan únicamente en las aplicaciones, nunca en Selkies. La expansión `$LIB` selecciona las bibliotecas de 32/64 bits por proceso.
 

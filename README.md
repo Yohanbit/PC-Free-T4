@@ -28,6 +28,7 @@ Pasos para iniciar el entorno virtual:
 - Instalador de `.deb`, `.AppImage`, `.tar`, `.tar.gz` y `.rpm` con descarga por URL, acceso en el escritorio y asociación de archivos.
 - Chrome con aceleración WebGL y WebGPU y navegador predeterminado del escritorio.
 - Heroic con Wine 9, Proton 9 y las dependencias de ejecución de juegos.
+- Battly Launcher para Minecraft con Java 21, Sodium y VulkanMod opcionales.
 
 ## Notas
 

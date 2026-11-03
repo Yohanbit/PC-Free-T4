@@ -215,6 +215,18 @@ def _graphics(base, driver, log):
 
 def _gamepads(base, log, shared_root):
     """fake-udev privado, 2 ELF verificados. Nunca sustituye libudev del sistema."""
+    reusable = True
+    for arch, triplet in TRIPLETS.items():
+        try:
+            _elf(shared_root / 'lib' / triplet / 'libudev.so.1', arch)
+            _elf(Path('/usr/lib') / triplet / 'selkies_input_interposer.so', arch)
+        except (OSError, RuntimeError, struct.error):
+            reusable = False
+            break
+    if reusable:
+        print('Mandos: fake-udev e interposer ya aprovisionados; no se recompila.')
+        return {'SELKIES_INTERPOSER': '/usr/$LIB/selkies_input_interposer.so',
+                'fake_udev': str(shared_root / '$LIB' / 'libudev.so.1')}
     _safe_install(['build-essential', 'gcc-multilib', 'libc6-dev-i386',
                    'libudev1:amd64', 'libudev1:i386'], log)
     with tempfile.TemporaryDirectory(prefix='fake-udev-', dir=base) as temporary:

@@ -10,6 +10,15 @@
 - Corregido el arranque: los paquetes base quedan en la lista mínima y los opcionales se instalan por separado; si APT propone eliminar algo, se omite ese paquete en vez de cancelar todo el escritorio.
 - Corregida la comprobación de Chrome cuando `runuser` no está en `PATH`: se usa `/usr/sbin/runuser` o `shutil.which`, y el error no detiene la celda.
 - Añadido instalador gráfico de `.deb`, `.AppImage`, `.tar`, `.tar.gz` y `.rpm`: descarga HTTPS o archivo local, instalación/extracción, acceso en el escritorio y registro MIME.
+- Mandos en toda la VM: el arranque compila `fake-udev` desde la fuente fijada (SHA-256 `67eaae…5b40`) en `lib/x86_64-linux-gnu` y `lib/i386-linux-gnu`, y `pcfree-run` precarga interposer + fake-udev en cada aplicación, lo que permite enumerarlos por libudev a Chrome, Heroic, Steam y juegos. 64 bits se compila primero: si `all32` falla por falta de cabeceras i386, los mandos siguen activos para 64 bits. Se añade `fake_udev_root` a la sesión y el fallback `SDL_JOYSTICK_DEVICE` solo se usa cuando fake-udev falta.
+- FSR 1.0 con `WINE_FULLSCREEN_FSR` y `FSR_UPSCALING`/`FSR_STRENGTH`; FSR 2/3 no se pueden forzar desde fuera.
+- Stutter: `dxvk.enableGraphicsPipelineLibrary`, `dxvk.numCompilerThreads=1` y `VKD3D_CONFIG=pipeline_library_app_cache`. `DXVK_ASYNC` no existe desde DXVK 2.0.
+- Vigilante que termina `pyright-langserver` y otros servidores de lenguaje cada 20 s.
+- Instalador `.deb`: Recommends, `--fix-broken` y rechazo de eliminaciones o cambios de kernel/driver.
+- Battly Launcher 3.0.1 con SHA-256, Java 21, lanzador `pcfree-battly` y acceso de escritorio.
+- Límite de FPS de render con `FPS_CAP = 60`: `dxvk.maxFrameRate` en `dxvk.conf` y `VKD3D_FRAME_RATE`, aplicados por el lanzador generado. No se usa `dxvk.framerate` (clave inexistente), `DXVK_FRAME_RATE` (retirado de DXVK) ni `WINE_FULLSCREEN_FPS` (no existe en Wine).
+- Cola de backpressure 120 → 90 para acotar latencia manteniendo margen ante hipos.
+- Heroic: detección de `futex_waitv` y ajuste de `enableFsync`/`enableEsync`, agrupación de errores de los registros y estado de los procesos de Wine.
 - Interruptor `ENABLE_CONGESTION_CONTROL` en la celda de inicio, desactivado por defecto. Con `True` se pasa `--congestion-control=true` a Selkies (CBR adaptativo por pérdida y RTT); con `False` se mantiene `--congestion-control=false`, el comportamiento anterior.
 - Heroic: instalación de Wine 9 del sistema, dependencias de Heroic, bibliotecas de juego de 32 bits y GE-Proton9-27 en su selector. Se corrige la configuración `wineVersion` si estaba vacía o “Not Found” y se activan DXVK/VKD3D automáticos.
 - Corregida la regla `sudoers` de `pcfree-install-deb`: terminación con salto de línea real (`chr(10)`) y validación con `visudo`.

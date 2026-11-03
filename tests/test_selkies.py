@@ -249,9 +249,9 @@ class SelkiesTests(unittest.TestCase):
         for invalid in ("AUDIO_FRAME_DURATION_MS='20|locked'", "AUDIO_BITRATE='96000|locked'",
                         "AUDIO_CHANNELS='2-2'", "AUDIO_REDUNDANCY_DISTANCE='2-2'"):
             self.assertNotIn(invalid, core_source)
-        # One queued chunk drops audio on the first hiccup; 120 keeps the stream alive.
+        # One queued chunk drops audio on the first hiccup; 90 bounds latency while absorbing bursts.
         self.assertEqual(inspect.signature(CORE.bootstrap)
-                         .parameters['backpressure_queue_size'].default, 120)
+                         .parameters['backpressure_queue_size'].default, 90)
         with self.assertRaisesRegex(ValueError, 'cola: 1–100000'):
             CORE.bootstrap(backpressure_queue_size=100001)
 
@@ -320,7 +320,8 @@ class SelkiesTests(unittest.TestCase):
         self.assertIn('max(width, 1920)', source)
         document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
         _, start = find_cell(document, '# @title Iniciar PC-Free-T4')
-        self.assertIn('BACKPRESSURE_QUEUE_SIZE = 120', ''.join(start['source']))
+        self.assertIn('BACKPRESSURE_QUEUE_SIZE = 90', ''.join(start['source']))
+        self.assertIn('FPS_CAP = 60', ''.join(start['source']))
 
     def test_game_environment_cell_is_real_and_clean(self):
         document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
@@ -403,6 +404,130 @@ class SelkiesTests(unittest.TestCase):
         cell = ''.join(start['source'])
         self.assertIn('ENABLE_CONGESTION_CONTROL = False', cell)
         self.assertIn('congestion_control=ENABLE_CONGESTION_CONTROL', cell)
+
+    def test_fps_cap_writes_real_dxvk_keys(self):
+        self.assertEqual(inspect.signature(CORE.bootstrap).parameters['fps_cap'].default, 60)
+        with self.assertRaisesRegex(ValueError, 'fps_cap'):
+            CORE.bootstrap(fps_cap=300)
+        account = types.SimpleNamespace(pw_uid=1000, pw_gid=1000)
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(CORE.pwd, 'getpwnam', return_value=account), \
+             patch.object(CORE.os, 'chown'):
+            session = {'home': folder, 'env': {}}
+            config = CORE.apply_fps_cap(session, {}, 60)
+            text = Path(config).read_text()
+            self.assertIn('dxvk.maxFrameRate = 60', text)
+            self.assertIn('d3d9.maxFrameRate = 60', text)
+            self.assertIn('dxgi.maxFrameRate = 60', text)
+            self.assertEqual(session['env']['VKD3D_FRAME_RATE'], '60')
+            self.assertEqual(session['env']['DXVK_CONFIG_FILE'], str(config))
+            CORE.apply_fps_cap(session, {}, 0)
+            self.assertNotIn('VKD3D_FRAME_RATE', session['env'])
+            self.assertNotIn('maxFrameRate', Path(config).read_text())
+        source = (ROOT / 'scripts/selkies-desktop.py').read_text()
+        for invented in ('dxvk.framerate', 'WINE_FULLSCREEN_FPS', "DXVK_FRAME_RATE'"):
+            self.assertNotIn(invented, source)
+
+    def test_gamepad_provisioning_logic(self):
+        # fake-udev ships no binaries in the .deb: it must be built from the pinned
+        # source, and a 64-bit build alone must be enough for Chrome, Heroic and SDL2.
+        self.assertEqual(CORE.SELKIES_SRC_SHA256,
+                         '67eaae6f175df845f8dd7fffc58911dcaa5b9f07150f129e314ca45d47405b40')
+        self.assertEqual(CORE.GAMEPAD_TRIPLETS['amd64'], 'x86_64-linux-gnu')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / 'fake-udev'
+            self.assertEqual(CORE.gamepad_preload(root), (None, None, []))
+            target = root / 'lib' / 'x86_64-linux-gnu'
+            target.mkdir(parents=True)
+            (target / 'libudev.so.1').write_bytes(b'fake')
+            interposer, fake, arches = CORE.gamepad_preload(root)
+            self.assertIsNone(interposer)
+            self.assertEqual(fake, str(root / '$LIB' / 'libudev.so.1'))
+            self.assertEqual(arches, ['amd64'])
+        source = (ROOT / 'scripts/selkies-desktop.py').read_text()
+        self.assertIn("'make', '-C', str(build), target", source)
+        self.assertIn("('amd64', 'all', 'libudev.so.1.0.0-fake')", source)
+        self.assertIn("('i386', 'all32', 'libudev_x86.so.1.0.0-fake')", source)
+        self.assertIn('fake_udev_root', source)
+        # The launcher must only use the SDL fallback when fake-udev is missing.
+        launcher = (ROOT / 'scripts/selkies-desktop.py').read_text()
+        self.assertIn('interposer_ready', launcher)
+
+    def test_elf_arch_detection(self):
+        self.assertEqual(CORE.elf_arch('/bin/sh'), 'amd64')
+        self.assertIsNone(CORE.elf_arch('/etc/hostname'))
+        self.assertIsNone(CORE.elf_arch('/nonexistent/file'))
+
+    def test_fsr_and_shader_tuning(self):
+        account = types.SimpleNamespace(pw_uid=1000, pw_gid=1000)
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(CORE.pwd, 'getpwnam', return_value=account), \
+             patch.object(CORE.os, 'chown'):
+            session = {'home': folder, 'env': {}}
+            config = CORE.apply_fps_cap(session, {}, 60, True, 2)
+            text = Path(config).read_text()
+            self.assertIn('dxvk.enableGraphicsPipelineLibrary = Auto', text)
+            self.assertIn('dxvk.numCompilerThreads = 1', text)
+            self.assertIn('dxvk.tearFree = False', text)
+            self.assertEqual(session['env']['WINE_FULLSCREEN_FSR'], '1')
+            self.assertEqual(session['env']['WINE_FULLSCREEN_FSR_STRENGTH'], '2')
+            self.assertEqual(session['env']['VKD3D_CONFIG'], 'pipeline_library_app_cache')
+            self.assertIn('VKD3D_SHADER_CACHE_PATH', session['env'])
+            CORE.apply_fps_cap(session, {}, 60, False, 2)
+            self.assertNotIn('WINE_FULLSCREEN_FSR', session['env'])
+        source = (ROOT / 'scripts/selkies-desktop.py').read_text()
+        # The async pipeline patch and DXVK_FRAME_RATE no longer exist in DXVK.
+        self.assertNotIn('DXVK_ASYNC', source)
+        self.assertNotIn("env['DXVK_FRAME_RATE']", source)
+        with self.assertRaisesRegex(ValueError, 'fsr_strength'):
+            CORE.bootstrap(fsr_strength=9)
+
+    def test_start_cell_exposes_fsr(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        _, start = find_cell(document, '# @title Iniciar PC-Free-T4')
+        cell = ''.join(start['source'])
+        for token in ('FSR_UPSCALING = False', 'FSR_STRENGTH = 2',
+                      'fsr=FSR_UPSCALING', 'fsr_strength=FSR_STRENGTH',
+                      'FSR 2 y 3 son'):
+            self.assertIn(token, cell)
+
+    def test_language_server_watchdog(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        _, cell = find_cell(document, 'pcfree-noise-guard')
+        source = ''.join(cell['source'])
+        for token in ('pyright-langserver', 'pkill -f', 'sleep 20',
+                      "Path('/usr/local/sbin/pcfree-noise-guard')", 'setsid'):
+            self.assertIn(token, source)
+        self.assertIn('noise-guard.pid', source)
+
+    def test_deb_helper_resolves_dependencies(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        source = ''.join(document['cells'][3]['source'])
+        helper = re.search(r'helper\.write_text\("""(#!/usr/bin/python3\.12.*?)"""\)', source, re.S)
+        self.assertIsNotNone(helper)
+        body = helper.group(1)
+        ast.parse(body)
+        # Recommends carry fonts and audio for desktop apps; --fix-broken repairs deps.
+        self.assertNotIn('--no-install-recommends', body)
+        self.assertIn('--fix-broken', body)
+        self.assertIn('Remv ', body)
+        self.assertIn('nvidia', body)
+        for uri_guard in ('archive.ubuntu.com', 'ports.ubuntu.com'):
+            self.assertIn(uri_guard, body)
+
+    def test_battly_cell_pinned_and_functional(self):
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        _, cell = find_cell(document, 'INSTALL_BATTLY')
+        source = ''.join(cell['source'])
+        for token in ("BATTLY_VERSION = '3.0.1'",
+                      "'9fefe53b19ac0d6b2571e7783d95092e4a401ab198b6bae36edff1de48230e01'",
+                      'Battly-Launcher-linux-amd64.deb', 'battlylauncher',
+                      'openjdk-21-jre-headless', '/opt/Battly Launcher/battlylauncher',
+                      '--no-sandbox', 'pcfree-battly', 'Battly.desktop',
+                      'unshare', 'Sodium', 'VulkanMod'):
+            self.assertIn(token, source)
+        self.assertNotIn('--no-install-recommends', source)
+        ast.parse(source)
 
     def test_security_static(self):
         source = (ROOT / 'scripts/selkies-desktop.py').read_text()

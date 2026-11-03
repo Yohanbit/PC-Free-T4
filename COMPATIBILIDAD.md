@@ -64,6 +64,7 @@ La celda de Heroic instala el `.deb` oficial y añade:
 - Bibliotecas de juego de 32 bits: OpenGL, EGL, Vulkan, X11, XCB, audio, SDL2 y OpenAL.
 - GE-Proton9-27 en `~/.config/heroic/tools/proton`, con SHA-512, para que aparezca en el selector de Heroic.
 - Configuración existente de Heroic: si `wineVersion` estaba vacío o era “Not Found”, se sustituye por Wine del sistema; se activan DXVK, VKD3D y NVAPI automáticos.
+- fsync/esync: se comprueba `futex_waitv` en `/proc/kallsyms`; con el símbolo se activan `enableFsync` y `enableEsync` en Heroic, sin él solo `enableEsync`. La celda agrupa los errores de `Xorg.log`, `selkies.log`, `xfce.log`, `pulse.log`, `install.log` e `install-heroic.log` por patrón y muestra `WINEFSYNC`/`WINEESYNC` de los procesos de Wine.
 
 Si Heroic ya estaba abierto, cerrarlo y volver a abrirlo. En Ajustes > Wine deben aparecer **Wine 9** y **GE-Proton9-27**.
 
@@ -73,7 +74,13 @@ Si Heroic ya estaba abierto, cerrarlo y volver a abrirlo. En Ajustes > Wine debe
 - Proton 11.0-2 se gestiona desde Steam; GE-Proton11-11 se descarga bajo demanda desde la celda correspondiente, con SHA-512, y no al iniciar.
 - La celda de pruebas Proton comprueba OpenGL y Vulkan de 32/64 bits y crea prefijos Proton de 64 y 32 bits. No usa Wine suelto ni perfiles por juego.
 - DXVK y VKD3D-Proton son parte del runtime de Proton/GE; no se instalan sueltos.
-- La resolución de Selkies es automática desde 960×540 inicial; la cola es de 120 fragmentos para absorber hipos sin descartar audio.
+- La resolución de Selkies es automática desde 960×540 inicial; la cola es de 90 fragmentos.
+- Límite de render con `FPS_CAP`: `dxvk.maxFrameRate`, `d3d9.maxFrameRate` y `dxgi.maxFrameRate` en `dxvk.conf`, más `VKD3D_FRAME_RATE` para D3D12. `0` lo desactiva. Reduce CPU y GPU cuando el juego supera el FPS de transmisión.
+- FSR: `WINE_FULLSCREEN_FSR=1` y `WINE_FULLSCREEN_FSR_STRENGTH` (0–5) escalan D3D11/12 por GPU. Es FSR 1.0; FSR 2/3 son temporales y requieren soporte del juego o un mod.
+- Nitidez y stutter: `dxvk.enableGraphicsPipelineLibrary=Auto` y `dxvk.numCompilerThreads=1`; `VKD3D_CONFIG=pipeline_library_app_cache` con caché propia. Sustituyen al parche async, retirado de DXVK 2.0.
+- Servidores de lenguaje: un vigilante termina `pyright-langserver` y similares cada 20 s para no consumir CPU de la transmisión.
+- Instalador `.deb` del escritorio: resuelve Recommends, repara dependencias con `apt-get --fix-broken` y rechaza eliminaciones o cambios de driver/kernel.
+- Battly Launcher 3.0.1 fijado con SHA-256, Java 21 y acceso con `pcfree-run`; añade `--no-sandbox` solo si faltan namespaces de usuario.
 - El control de congestión se elige en la celda de inicio con `ENABLE_CONGESTION_CONTROL`, desactivado por defecto. Activo, adapta el bitrate CBR a la pérdida y al RTT; inactivo, mantiene el bitrate fijo y la latencia depende del enlace.
 
 ## Parches P1-P22
@@ -114,7 +121,7 @@ Activar únicamente las casillas necesarias y ejecutar esa celda. La instalació
 | Opción | Fuente / alcance |
 | --- | --- |
 | Steam | [Cliente oficial](https://store.steampowered.com/about/), bibliotecas NVIDIA de 32/64 bits y lanzador no-root. El acceso a la cuenta sigue pendiente de validación. |
-| Mandos | [Input Interposer y fake-udev](https://docs.selkies.io/latest/components/input-interposer), sin depender de `/dev/uinput`. Necesita aplicaciones iniciadas con `pcfree-run`. |
+| Mandos | [Input Interposer y fake-udev](https://docs.selkies.io/latest/components/input-interposer), sin depender de `/dev/uinput`. El arranque compila fake-udev de 64 bits desde la fuente fijada y `pcfree-run` precarga interposer + fake-udev en toda aplicación, incluidos Chrome, Heroic y Steam. Las aplicaciones iniciadas fuera de `pcfree-run` no reciben los mandos. |
 | Wine y Winetricks | Paquetes Ubuntu para programas Windows. No equivalen a compatibilidad universal. |
 | Lutris / Heroic | [Lutris](https://lutris.net/) desde Ubuntu; [Heroic](https://heroicgameslauncher.com/) desde su publicación oficial. |
 | Minecraft | [Prism Launcher](https://prismlauncher.org/) y Java 21. Requiere cuenta y versión/mods compatibles. |
