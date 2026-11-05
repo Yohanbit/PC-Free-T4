@@ -1,18 +1,15 @@
 # Compatibilidad y controles
 
-## Roblox incluido
+## Roblox (no instalado por defecto)
 
-La preparación de Flatpak y [Sober](https://sober.vinegarhq.org/) está activada por defecto, sin abrir ventanas ni retrasar la publicación del enlace. **Sober sólo se instala si la VM permite el sandbox real de Flatpak.** Al terminar correctamente aparece **Roblox - Sober** en el escritorio. Abrirlo y dejar seleccionada la instalación automática de Roblox en el primer inicio. Para omitir la preparación, desactivar `INSTALL_ROBLOX` en la celda inicial.
+La libreta publicada **no instala Roblox**. `scripts/compat-apps.py` contiene la preparación de Flatpak y [Sober](https://sober.vinegarhq.org/), pero ninguna celda la ejecuta: se conserva como fuente para quien quiera llamarla a mano (`optional_module('compat-apps.py')['install_roblox'](SESSION)`).
 
-- Comprueba x86-64, kernel Linux >=5.11 y **SSE4.1** en todos los procesadores asignados. SSE4.2 es recomendado; no se añaden instrucciones a una CPU mediante paquetes.
-- Requisitos oficiales: **OpenGL ES >=3.0**; Vulkan >=1.1 recomendado. El arranque comprueba Vulkan en la T4 y registra el perfil OpenGL ES en `opengl.log`.
-- Flatpak usa su propia extensión GL/Vulkan NVIDIA, con la **misma versión exacta** que el controlador del host. No reutiliza las rutas privadas de bibliotecas del escritorio dentro del sandbox.
-- Comprueba namespaces y un sandbox Bubblewrap con montaje de `/proc` **antes de descargar runtimes**. Después ejecuta `/usr/bin/true` dentro del sandbox de Sober. Prepara D-Bus de sistema si falta, necesario para la instalación de aplicaciones Flatpak. Si falla un requisito o no existe el runtime exacto, conserva el escritorio y muestra el error; no desactiva el sandbox.
-- Estado: `/tmp/pcfree-selkies/sober-status.txt`. Reintento desde Colab: `_apps['roblox_background'](SESSION)`.
+- Comprueba x86-64, kernel Linux >=5.11 y **SSE4.1** antes de descargar runtimes.
+- Flatpak usa su propia extensión GL/Vulkan NVIDIA, con la **misma versión exacta** que el controlador del host.
+- Verifica namespaces y un sandbox Bubblewrap con montaje de `/proc` antes de descargar. Si falla un requisito, muestra el error y no desactiva el sandbox.
+- Estado: `/tmp/pcfree-selkies/sober-status.txt`.
 
-**Limitación comprobada en la sesión de Colab de desarrollo:** Sober se descargó, pero Bubblewrap recibió `Can't mount proc on /newroot/proc: Permission denied`. Por tanto, **Roblox no funciona en esa VM**, aunque tenga SSE4.2 y T4. El nuevo cuaderno detecta esa restricción antes de descargar los runtimes. No se garantiza Sober en todas las VMs de Colab.
-
-Sober es comunitario y experimental, no un cliente respaldado por Roblox. Instalarlo no demuestra que un juego funcione ni garantiza compatibilidad con anticheat o mandos.
+**Limitación comprobada:** en la VM de desarrollo Bubblewrap recibió `Can't mount proc on /newroot/proc: Permission denied`, así que Roblox no arranca aunque haya SSE4.2 y T4. Sober es comunitario y experimental, no un cliente respaldado por Roblox.
 
 ## Ratón y teclado para juegos
 
@@ -34,6 +31,16 @@ Documentación: [controles Selkies 2.1](https://github.com/selkies-project/selki
 El arranque escribe `~/.config/pulse/daemon.conf` (48 kHz, `s16le`, `flat-volumes=no`, `speex-float-1`, fragmentos de 40 ms), crea el sink `output` fijo a 48 kHz estéreo y lanza PulseAudio con `nice -10`. Selkies captura `output.monitor` a 96 kbps, 20 ms y RED 2, y la cola de backpressure es de 90 fragmentos.
 
 Estos ajustes se aplican al iniciar; no hay una celda separada para audio. Una sesión anterior al cambio debe reiniciarse. No se ha medido todavía en todos los clientes ni con todas las cargas de audio. Si el corte aparece solo en un cliente, bajar el volumen del navegador o desactivar el audio en la barra lateral para distinguir el decodificador local del servidor.
+
+## Reconexión del cliente
+
+El cliente guarda el transporte en `localStorage` (`stream_mode`) y un indicador de reintento en `sessionStorage` (`selkies_mode_flip`). Si el valor guardado no coincide con el servidor, la página se queda en «conectando» hasta cambiar de navegador. El cliente servido inyecta antes del bundle:
+
+- `window.__SELKIES_STREAMING_MODE__ = "websockets"`, que tiene prioridad sobre el valor guardado.
+- Borrado de `selkies_mode_flip`, para que el reintento vuelva a funcionar.
+- Corrección de cualquier clave `*stream_mode` distinta de `websockets`.
+
+Recargar la página o abrir una pestaña nueva ya no requiere cambiar de navegador.
 
 ## Captura y decodificación
 

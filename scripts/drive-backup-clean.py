@@ -18,13 +18,13 @@ with zipfile.ZipFile(source) as archive:
 # Google asks the user for authorization. No third-party desktop apps here.
 drive.mount('/content/drive')
 try:
-    folder=Path('/content/drive/MyDrive/PC-Free-Backups')
+    folder=Path('/content/drive/MyDrive/PC-Free-T4')
     folder.mkdir(parents=True,exist_ok=True)
     destination=folder/source.name
     assert not destination.exists(), 'Ya existe un respaldo con este nombre; no sobrescribir.'
     shutil.copyfile(source,destination)
     assert hashlib.file_digest(source.open('rb'),'sha256').hexdigest()==hashlib.file_digest(destination.open('rb'),'sha256').hexdigest()
-    print('Respaldo copiado y verificado en MyDrive/PC-Free-Backups/',source.name)
+    print('Respaldo copiado y verificado en MyDrive/PC-Free-T4/',source.name)
 finally:
     drive.flush_and_unmount()
     print('Drive desmontado. No ejecutar apps de terceros en este cuaderno.')

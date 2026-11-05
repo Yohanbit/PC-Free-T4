@@ -215,14 +215,14 @@ def _graphics(base, driver, log):
 
 def _gamepads(base, log, shared_root):
     """fake-udev privado, 2 ELF verificados. Nunca sustituye libudev del sistema."""
-    reusable = True
-    for arch, triplet in TRIPLETS.items():
-        try:
-            _elf(shared_root / 'lib' / triplet / 'libudev.so.1', arch)
-            _elf(Path('/usr/lib') / triplet / 'selkies_input_interposer.so', arch)
-        except (OSError, RuntimeError, struct.error):
-            reusable = False
-            break
+    # Basta con 64 bits: es lo que usan Steam y la mayoria de juegos. Un fallo
+    # de la variante i386 no debe cancelar la instalacion completa de Steam.
+    try:
+        _elf(shared_root / 'lib' / TRIPLETS['amd64'] / 'libudev.so.1', 'amd64')
+        _elf(Path('/usr/lib') / TRIPLETS['amd64'] / 'selkies_input_interposer.so', 'amd64')
+        reusable = True
+    except (OSError, RuntimeError, struct.error):
+        reusable = False
     if reusable:
         print('Mandos: fake-udev e interposer ya aprovisionados; no se recompila.')
         return {'SELKIES_INTERPOSER': '/usr/$LIB/selkies_input_interposer.so',
@@ -246,18 +246,26 @@ def _gamepads(base, log, shared_root):
                     raise RuntimeError('Entrada de archivo no segura en fake-udev.')
             source.extractall(temporary, members=members, filter='data')
         build = Path(temporary) / prefix
-        _run(['make', '-C', str(build), 'all', 'all32'], log=log)
-        for arch, triplet in TRIPLETS.items():
-            filename = 'libudev.so.1.0.0-fake' if arch == 'amd64' else 'libudev_x86.so.1.0.0-fake'
-            source = build / filename
-            _elf(source, arch)
+        targets = (('amd64', 'all', 'libudev.so.1.0.0-fake'),
+                   ('i386', 'all32', 'libudev_x86.so.1.0.0-fake'))
+        for arch, target, filename in targets:
+            triplet = TRIPLETS[arch]
             destination = shared_root / 'lib' / triplet
+            if (destination / 'libudev.so.1').is_file():
+                continue
+            try:
+                _run(['make', '-C', str(build), target], log=log)
+                source = build / filename
+                _elf(source, arch)
+            except (OSError, RuntimeError, struct.error) as exc:
+                # 32 bits suele faltar sin cabeceras i386: no cancelar Steam.
+                print(f'Aviso: fake-udev {arch} no disponible ({exc}); se continua.')
+                continue
             destination.mkdir(parents=True, exist_ok=True)
             # Reinstalar no debe truncar una biblioteca ya mapeada por un juego.
             staged = destination / 'libudev.so.1.new'
             shutil.copy2(source, staged)
             staged.replace(destination / 'libudev.so.1')
-            # La .deb oficial Selkies proporciona ambas variantes del interposer.
             interposer = Path('/usr/lib') / triplet / 'selkies_input_interposer.so'
             _elf(interposer, arch)
     input_directory = Path('/dev/input')

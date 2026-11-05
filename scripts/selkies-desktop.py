@@ -58,9 +58,12 @@ OPTIONAL_PACKAGES = [
     'libavcodec-extra', 'libva2', 'libva-drm2', 'libva-x11-2', 'libvdpau1',
     'libopenal1', 'libsdl2-2.0-0',
     'xdg-utils', 'desktop-file-utils', 'shared-mime-info', 'fonts-liberation', 'wget',
+    'rpm2cpio', 'cpio',
 ]
-TEST_PACKAGES = ['gcc-multilib', 'libc6-dev-i386', 'libx11-dev', 'libgl1-mesa-dev',
-                 'libx11-dev:i386', 'libgl1-mesa-dev:i386']
+# libx11-dev y libgl1-mesa-dev son multiarch: pedirlas :amd64 y :i386 a la vez
+# hace que APT proponga eliminar una de las dos. Se instalan por separado.
+TEST_PACKAGES = ['gcc-multilib', 'libc6-dev-i386', 'libx11-dev', 'libgl1-mesa-dev']
+TEST_PACKAGES_32 = ['libx11-dev:i386', 'libgl1-mesa-dev:i386']
 I386_LIBRARIES = [
     'libgl1:i386', 'libglx0:i386', 'libglvnd0:i386', 'libegl1:i386',
     'libgles2:i386', 'libvulkan1:i386', 'libdrm2:i386', 'libgbm1:i386',
@@ -295,7 +298,8 @@ def install_compat_libraries():
     logged(['dpkg', '--add-architecture', 'i386'], 'i386-arch', timeout=120)
     logged(['apt-get', 'update', '-qq'], 'i386-update', timeout=240)
     safe_optional_install(I386_LIBRARIES, 'Bibliotecas 32 bits')
-    safe_optional_install(TEST_PACKAGES, 'Herramientas de prueba 32/64 bits')
+    safe_optional_install(TEST_PACKAGES, 'Herramientas de prueba 64 bits')
+    safe_optional_install(TEST_PACKAGES_32, 'Cabeceras de prueba 32 bits')
 
 
 def install_optional_packages():
@@ -573,7 +577,7 @@ def provision_gamepads(root=None):
                     raise RuntimeError('enlace no admitido en el archivo')
                 if not (member.isfile() or member.isdir()):
                     raise RuntimeError('tipo de entrada no admitido')
-            source.extractall(work, members=members)
+            source.extractall(work, members=members, filter='data')
         build = work / prefix
         # 64 bits primero: es el que usan Chrome, Heroic y los juegos nativos.
         targets = (('amd64', 'all', 'libudev.so.1.0.0-fake'),
@@ -679,7 +683,8 @@ def shm_perms_library():
 
 
 def as_user(argv):
-    return ['runuser', '-u', USER, '--', *argv]
+    # /usr/sbin puede faltar en PATH; se resuelve una vez.
+    return [shutil.which('runuser') or '/usr/sbin/runuser', '-u', USER, '--', *argv]
 
 
 def spawn(argv, name, env, processes, user=True, nice=None):
@@ -870,6 +875,9 @@ def chrome_profile(session):
         '--renderer-process-limit=2', '--process-per-site',
         '--disk-cache-size=134217728', '--media-cache-size=33554432',
         '--use-gl=egl', '--ignore-gpu-blocklist', '--ozone-platform=x11',
+        # Rasterizado por GPU para el escritorio remoto y el canvas del stream.
+        '--enable-gpu-rasterization', '--enable-zero-copy',
+        '--enable-features=CanvasOopRasterization',
     ]
     wrapper = Path(session.get('bin_dir', '/usr/local/bin')) / 'pcfree-chrome'
     wrapper.parent.mkdir(parents=True, exist_ok=True)
@@ -969,6 +977,23 @@ INPUT_GUARD_JS = r'''(() => {
 '''
 
 
+STREAM_MODE_MARKER = 'pcfree-stream-mode'
+STREAM_MODE_JS = (
+    '<script id="pcfree-stream-mode">/* ' + STREAM_MODE_MARKER + ' */\n'
+    'try {\n'
+    '  window.__SELKIES_STREAMING_MODE__ = "websockets";\n'
+    '  sessionStorage.removeItem("selkies_mode_flip");\n'
+    '  for (var i = 0; i < localStorage.length; i++) {\n'
+    '    var key = localStorage.key(i);\n'
+    '    if (key && key.slice(-11) === "stream_mode" && localStorage.getItem(key) !== "websockets") {\n'
+    '      localStorage.setItem(key, "websockets");\n'
+    '    }\n'
+    '  }\n'
+    '} catch (error) { /* almacenamiento bloqueado: el servidor sigue fijando el modo */ }\n'
+    '</script>'
+)
+
+
 def prepare_web_client(source=None):
     """Private static copy; keep upstream bundles and native Gaming Mode intact."""
     source = Path(source or '/opt/selkies/lib/python3.12/site-packages/selkies/selkies_web')
@@ -981,8 +1006,13 @@ def prepare_web_client(source=None):
         html = index.read_text()
         if '</head>' not in html:
             raise RuntimeError('Cliente web sin cabecera reconocible; no modificar bundles.')
+        if STREAM_MODE_MARKER not in html:
+            # Va antes del bundle: el cliente decide el transporte al arrancar y
+            # un valor guardado en localStorage le gana al del servidor.
+            html = html.replace('<head>', '<head>' + STREAM_MODE_JS, 1)
         if marker not in html:
-            index.write_text(html.replace('</head>', marker + '\n</head>', 1))
+            html = html.replace('</head>', marker + '\n</head>', 1)
+        index.write_text(html)
     (target / 'pcfree-input-guard.js').write_text(INPUT_GUARD_JS)
     return str(target)
 

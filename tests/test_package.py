@@ -51,6 +51,11 @@ with tempfile.TemporaryDirectory(prefix='pcfree-backup-test-') as folder:
     restore=(root/'scripts/11-restore-worlds.py').read_text().replace("RESTORE_SAVES_DIRECTORY=''",'RESTORE_SAVES_DIRECTORY='+repr(str(target)))
     oldcwd=Path.cwd();os.chdir(folder)
     files.upload=lambda:{'restore.zip':upload.read_bytes()}
+    # El script importa pwd de verdad: se parchea la cuenta para no necesitar
+    # que exista pcfree-browser en la maquina que ejecuta las pruebas.
+    fake_account=types.SimpleNamespace(pw_uid=os.getuid(),pw_gid=os.getgid())
+    real_getpwnam=pwd.getpwnam
+    pwd.getpwnam=lambda name: fake_account
     try:
         exec(compile(restore,'test-restore','exec'),env)
         assert len(list(target.glob('*/level.dat')))==1
@@ -73,6 +78,7 @@ with tempfile.TemporaryDirectory(prefix='pcfree-backup-test-') as folder:
         assert not (Path(folder)/'escape.dat').exists()
     finally:
         os.chdir(oldcwd)
+        pwd.getpwnam=real_getpwnam
 
 print('PASS: syntax, empty notebook outputs, embedded sources, fictional world round-trip, privacy boundaries, traversal rejection.')
 print('NOT TESTED: fresh Colab setup, real Minecraft saves, Google Drive authorization/copy, Steam login, game controllers.')

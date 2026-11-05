@@ -1,6 +1,7 @@
 # Explicit, manual export. Never copies launcher accounts, browser profiles,
 # Steam, RustDesk, tokens, or the complete application home directory.
-import zipfile, hashlib, json, datetime
+import datetime, hashlib, json, os, shutil, zipfile
+from pathlib import Path
 assert 'browser_env' in globals(), 'Primero preparar la cuenta de aplicaciones.'
 app_home=Path(browser_env['HOME']).resolve()
 world_candidates=[]

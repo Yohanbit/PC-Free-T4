@@ -16,6 +16,8 @@
 - Vigilante que termina `pyright-langserver` y otros servidores de lenguaje cada 20 s.
 - Instalador `.deb`: Recommends, `--fix-broken` y rechazo de eliminaciones o cambios de kernel/driver.
 - Battly Launcher 3.0.1 con SHA-256, Java 21, lanzador `pcfree-battly` y acceso de escritorio.
+- El cliente servido fija `window.__SELKIES_STREAMING_MODE__`, borra `selkies_mode_flip` y corrige `*stream_mode` en `localStorage`, de modo que recargar no deja la pantalla en negro.
+- Chrome añade `--enable-gpu-rasterization`, `--enable-zero-copy` y `CanvasOopRasterization`.
 - Límite de FPS de render con `FPS_CAP = 60`: `dxvk.maxFrameRate` en `dxvk.conf` y `VKD3D_FRAME_RATE`, aplicados por el lanzador generado. No se usa `dxvk.framerate` (clave inexistente), `DXVK_FRAME_RATE` (retirado de DXVK) ni `WINE_FULLSCREEN_FPS` (no existe en Wine).
 - Cola de backpressure 120 → 90 para acotar latencia manteniendo margen ante hipos.
 - Heroic: detección de `futex_waitv` y ajuste de `enableFsync`/`enableEsync`, agrupación de errores de los registros y estado de los procesos de Wine.

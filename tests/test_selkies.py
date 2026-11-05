@@ -261,7 +261,9 @@ class SelkiesTests(unittest.TestCase):
              patch.object(subprocess, 'Popen') as popen:
             CORE.spawn(['pulseaudio', '--version'], 'pulse', {}, {}, nice=-10)
             command = popen.call_args.args[0]
-            self.assertEqual(command[:5], ['nice', '-n', '-10', 'runuser', '-u'])
+            self.assertEqual(command[:3], ['nice', '-n', '-10'])
+            self.assertTrue(command[3].endswith('runuser'))
+            self.assertEqual(command[4], '-u')
             self.assertIn('pulseaudio', command)
 
     def test_capture_cell_uses_only_real_settings(self):
@@ -393,8 +395,8 @@ class SelkiesTests(unittest.TestCase):
     def test_congestion_control_switch(self):
         parameters = inspect.signature(CORE.bootstrap).parameters
         self.assertIs(parameters['congestion_control'].default, False)
-        self.assertIn('congestion_control', "('true' if congestion_control else 'false')")
         source = (ROOT / 'scripts/selkies-desktop.py').read_text()
+        # El flag debe llegar al argv y a la sesion, no solo existir el nombre.
         self.assertIn("'--congestion-control=' + ('true' if congestion_control else 'false')", source)
         self.assertIn("'congestion_control': congestion_control,", source)
         with self.assertRaisesRegex(ValueError, 'congestion_control'):
@@ -528,6 +530,109 @@ class SelkiesTests(unittest.TestCase):
             self.assertIn(token, source)
         self.assertNotIn('--no-install-recommends', source)
         ast.parse(source)
+
+    def test_no_broken_code_paths(self):
+        # Fallos detectados en auditoría: cada uno rompía la ejecución real.
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        cells = [''.join(c['source']) for c in document['cells'] if c['cell_type'] == 'code']
+
+        # 1) Battly: Path concatenado a str -> TypeError tras descargar 107 MB.
+        battly = next(c for c in cells if 'INSTALL_BATTLY' in c)
+        self.assertNotIn("+ 'Exec=' + wrapper + ", battly)
+        self.assertIn('str(wrapper)', battly)
+
+        # 2) Prioridades: la celda debe conservar imports y renice/ionice.
+        priority = next(c for c in cells if 'pcfree-noise-guard' in c)
+        self.assertIn('import os, subprocess', priority)
+        self.assertIn('from pathlib import Path', priority)
+        self.assertIn('def set_priority', priority)
+        self.assertIn('renice', priority)
+        self.assertIn('os.geteuid() != 0', priority)
+
+        # 3) Sonda C: printf con salto de linea real rompe gcc.
+        probe = next(c for c in cells if 'probe_c = ' in c)
+        literal = re.search(r"probe_c = r'''(.*?)'''", probe, re.S).group(1)
+        self.assertNotIn('printf("\n")', literal)
+        self.assertIn('printf("\\n")', literal)
+        self.assertIn('def as_user', probe)
+
+        # 4) Steam: proot-bwrap devuelve 404 y la validacion era imposible.
+        steam = next(c for c in cells if 'INSTALL_STEAM = True' in c)
+        self.assertNotIn('_prepare_proot_bwrap', steam)
+        self.assertNotIn('proot-bwrap/commits', steam)
+        self.assertIn("'runuser'", steam)
+
+        # 5) Heroic: config.json se crea aunque no exista.
+        heroic = next(c for c in cells if 'INSTALL_HEROIC' in c)
+        self.assertIn("config = {}", heroic)
+        self.assertIn("config.setdefault('version', 'v0')", heroic)
+        self.assertNotIn('if True:', heroic)
+        self.assertIn('--no-sandbox', heroic)
+
+        # 6) Instalador: el finally borraba la extraccion antes de buscar iconos.
+        installer = next(c for c in cells if 'pcfree-app-installer' in c)
+        self.assertLess(installer.index('Respaldo de icono dentro del try'),
+                        installer.index('shutil.rmtree(extract'))
+        self.assertIn("lambda _match: 'Exec=' + command", installer)
+        self.assertIn('--no-absolute-filenames', installer)
+        self.assertNotIn("'application/gzip'", installer)
+
+        # 7) Limpieza: no puede borrar las caches que usan DXVK/VKD3D/GE-Proton.
+        cleanup = next(c for c in cells if 'Liberar espacio' in c)
+        self.assertIn("'pcfree'", cleanup)
+        self.assertNotIn("'/tmp/pcfree-selkies/*'", cleanup)
+
+        # 8) Celda 8 no debe perder el sufijo |locked de Selkies.
+        stream = next(c for c in cells if 'apply_settings(argv, wanted, title)' in c)
+        self.assertIn("'|locked' if", stream)
+
+    def test_helper_and_scripts_have_imports(self):
+        import ast as _ast
+        for name in ('10-export-worlds.py', '11-restore-worlds.py'):
+            source = (ROOT / 'scripts' / name).read_text()
+            tree = _ast.parse(source)
+            imported = {alias.name for node in _ast.walk(tree)
+                        if isinstance(node, _ast.Import) for alias in node.names}
+            imported |= {alias.name for node in _ast.walk(tree)
+                         if isinstance(node, _ast.ImportFrom) for alias in node.names}
+            for required in ('Path', 'shutil'):
+                self.assertIn(required, imported, f'{name}: falta {required}')
+        desktop = (ROOT / 'scripts/selkies-desktop.py').read_text()
+        self.assertNotIn("return ['runuser', '-u', USER", desktop)
+        self.assertIn("shutil.which('runuser')", desktop)
+        for path in (ROOT / 'scripts').glob('*.py'):
+            for call in _ast.walk(_ast.parse(path.read_text())):
+                if (isinstance(call, _ast.Call) and getattr(call.func, 'attr', '') == 'extractall'):
+                    keywords = {kw.arg for kw in call.keywords}
+                    self.assertIn('filter', keywords, f'{path.name}: extractall sin filter')
+
+    def test_stream_mode_forced_on_reload(self):
+        # Un modo guardado en localStorage (p. ej. webrtc) o selkies_mode_flip
+        # en sessionStorage dejaban la pagina en "conectando" tras recargar.
+        self.assertIn('pcfree-stream-mode', CORE.STREAM_MODE_JS)
+        self.assertIn('__SELKIES_STREAMING_MODE__', CORE.STREAM_MODE_JS)
+        self.assertIn("sessionStorage.removeItem(\"selkies_mode_flip\")", CORE.STREAM_MODE_JS)
+        self.assertIn('stream_mode', CORE.STREAM_MODE_JS)
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / 'upstream'
+            source.mkdir()
+            (source / 'assets').mkdir()
+            (source / 'index.html').write_text(
+                '<!doctype html><html><head><script type="module" src="./assets/app.js"></script>'
+                '</head><body></body></html>')
+            with patch.object(CORE, 'BASE', Path(folder) / 'state'):
+                target = Path(CORE.prepare_web_client(source))
+                html = (target / 'index.html').read_text()
+                self.assertEqual(html.count('<script id="pcfree-stream-mode">'), 1)
+                # Debe ejecutarse antes que el bundle del cliente.
+                self.assertLess(html.index('pcfree-stream-mode'), html.index('assets/app.js'))
+                CORE.prepare_web_client(source)
+                again = (target / 'index.html').read_text()
+                self.assertEqual(again.count('<script id="pcfree-stream-mode">'), 1)
+                self.assertEqual(again.count('<script src="./pcfree-input-guard.js">'), 1)
+        chrome = (ROOT / 'scripts/selkies-desktop.py').read_text()
+        for flag in ('--enable-gpu-rasterization', '--enable-zero-copy'):
+            self.assertIn(flag, chrome)
 
     def test_security_static(self):
         source = (ROOT / 'scripts/selkies-desktop.py').read_text()

@@ -1,7 +1,7 @@
 # Upload a previously exported ZIP without mounting Drive in the desktop.
-import zipfile, json, hashlib, stat, datetime
+import datetime, hashlib, json, os, pwd, shutil, stat, zipfile
 from google.colab import files
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 RESTORE_SAVES_DIRECTORY='' # Set the exact saves directory for this Minecraft instance.
 assert RESTORE_SAVES_DIRECTORY, 'Indicar primero la carpeta saves de la instancia de Minecraft.'
 target=Path(RESTORE_SAVES_DIRECTORY).expanduser().resolve()
