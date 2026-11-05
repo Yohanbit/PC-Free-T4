@@ -6,13 +6,17 @@ Escritorio Ubuntu en Google Colab con GPU NVIDIA Tesla T4, entorno gráfico XFCE
 
 [![Abrir en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4.ipynb)
 
+**Actualización 2026-11-05:** corregido `NameError: name 'STREAM_MODE_MARKER' is not defined` en el arranque. El enlace anterior abre el notebook actualizado. Si tienes una copia antigua en Drive o una pestaña ya abierta, abre de nuevo el enlace de GitHub; esas copias no se actualizan automáticamente.
+
 Pasos para iniciar el entorno virtual:
 
 1. Abrir la libreta en Google Colab mediante el enlace anterior.
 2. Configurar el entorno con GPU: **Entorno de ejecución → Cambiar tipo de entorno de ejecución → GPU T4 → Guardar**.
-3. Ejecutar la libreta: **Entorno de ejecución → Ejecutar todo**.
+3. Ejecutar en orden: **Comprobar región → Cargar núcleo interno → Preparación del escritorio → Iniciar PC-Free-T4**. Las demás celdas son opcionales.
 4. Esperar a que la celda de inicio genere la URL del túnel junto con la cuenta y la contraseña.
 5. Abrir la URL en un navegador, ingresar las credenciales presentadas y seleccionar el botón de inicio de transmisión.
+
+La corrección se comprueba sin red ni GPU ejecutando la preparación dos veces y generando el cliente web con sus scripts. El arranque completo en una VM Colab con T4 requiere una prueba en ese entorno. El aviso de APT al omitir `libavcodec-extra` es independiente: se conserva el rechazo de operaciones que eliminen paquetes.
 
 ## Características
 

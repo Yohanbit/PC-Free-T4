@@ -8,6 +8,7 @@ import io
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -672,6 +673,58 @@ class SelkiesTests(unittest.TestCase):
             self.assertEqual(namespace['official_ubuntu_uri'](uri), CORE.official_ubuntu_uri(uri))
         self.assertIn('ALLOWED', writes['/usr/local/sbin/pcfree-install-package'])
         self.assertNotIn('NOPASSWD: ALL', writes['/etc/sudoers.d/pcfree-packages'])
+
+    def test_prepared_web_client_preserves_stream_mode(self):
+        # Exercise the actual notebook order, not only the unpatched module:
+        # the input-guard patch used to delete the adjacent stream constants.
+        document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
+        _, kernel_cell = find_cell(document, 'Cargar núcleo interno')
+        _, preparation_cell = find_cell(document, 'Preparación del escritorio')
+        env = {}
+        exec(compile(''.join(kernel_cell['source']), 'cell2', 'exec'), env)
+        original = env['SOURCES']['selkies-desktop.py']
+        guard = next(node for node in ast.parse(original).body
+                     if isinstance(node, ast.Assign)
+                     and any(isinstance(target, ast.Name) and target.id == 'INPUT_GUARD_JS'
+                             for target in node.targets))
+        # Future declarations between the guard and prepare_web_client must
+        # survive too; do not fix this by restoring only today's constants.
+        lines = original.splitlines(keepends=True)
+        lines.insert(guard.end_lineno, "\nADJACENT_DECLARATION = 'must survive'\n")
+        env['SOURCES']['selkies-desktop.py'] = ''.join(lines)
+        with tempfile.TemporaryDirectory() as folder:
+            upstream = Path(folder) / 'upstream'
+            upstream.mkdir()
+            (upstream / 'assets').mkdir()
+            bundle = b'// original upstream bundle'
+            (upstream / 'assets/app.js').write_bytes(bundle)
+            original_html = '<html><head><script src="assets/app.js"></script></head><body></body></html>'
+            for name in ('index.html', 'alternate.html'):
+                (upstream / name).write_text(original_html)
+            for attempt in range(2):
+                with self.subTest(preparation=attempt + 1):
+                    before = env['SOURCES']['selkies-desktop.py']
+                    exec(compile(''.join(preparation_cell['source']), 'preparation', 'exec'), env)
+                    if attempt:
+                        self.assertEqual(env['SOURCES']['selkies-desktop.py'], before)
+                    core = env['_core']
+                    self.assertEqual(core.get('STREAM_MODE_MARKER'), CORE.STREAM_MODE_MARKER)
+                    self.assertEqual(core.get('STREAM_MODE_JS'), CORE.STREAM_MODE_JS)
+                    self.assertEqual(core.get('ADJACENT_DECLARATION'), 'must survive')
+                    with patch.dict(core, {'BASE': Path(folder) / 'state'}):
+                        target = Path(core['prepare_web_client'](upstream))
+                        # Reuse an already patched tree to check injection idempotency.
+                        prepared_source = Path(folder) / 'already-patched'
+                        shutil.copytree(target, prepared_source, dirs_exist_ok=True)
+                        core['prepare_web_client'](prepared_source)
+                    for name in ('index.html', 'alternate.html'):
+                        html = (target / name).read_text()
+                        self.assertEqual(html.count('<script id="pcfree-stream-mode">'), 1)
+                        self.assertEqual(html.count('src="./pcfree-input-guard.js"'), 1)
+                        self.assertLess(html.index('pcfree-stream-mode'), html.index('assets/app.js'))
+                        self.assertEqual((upstream / name).read_text(), original_html)
+                    self.assertEqual((target / 'assets/app.js').read_bytes(), bundle)
+                    self.assertEqual((target / 'pcfree-input-guard.js').read_text(), core['INPUT_GUARD_JS'])
 
     def test_preparation_cell_publishes_patched_core(self):
         # Cell 3 must publish its patched source; otherwise bootstrap() recompiles

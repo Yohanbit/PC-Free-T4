@@ -1,5 +1,12 @@
 # Cambios
 
+## 2026-11-05 · corrección del arranque después de preparar el escritorio
+
+- Corregido `NameError: name 'STREAM_MODE_MARKER' is not defined`: el parche de `INPUT_GUARD_JS` reemplazaba todo el intervalo hasta `prepare_web_client`, eliminando también `STREAM_MODE_MARKER` y `STREAM_MODE_JS`.
+- La preparación localiza la asignación exacta con el árbol de sintaxis de Python y sustituye solo sus líneas. Conserva las constantes y cualquier declaración vecina, incluso al repetir la celda.
+- Añadida una prueba de regresión que carga el núcleo embebido, ejecuta la preparación dos veces y genera el cliente web con HTML/JavaScript de prueba. Verifica la inyección única del modo de transmisión antes del bundle, la conservación de los assets originales y de una declaración vecina adicional.
+- Notebook y README con enlace de Colab actualizado e instrucciones para no reutilizar copias antiguas. No se relajan las protecciones de APT ni se cambian los componentes fijados.
+
 ## 2026-10-25 · componentes actualizados y compatibilidad Proton
 
 - Selkies 2.1.0 con pixelflux 2.2.1 y pcmflux 2.2.0 incluidos; cloudflared 2026.10.3; Chrome 156.0.8078.47-1; GE-Proton11-11 y Proton 11.0-2. Los SHA-256/SHA-512 oficiales se verifican antes de usar cada descarga.
