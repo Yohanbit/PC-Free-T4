@@ -33,3 +33,24 @@ Pasos para iniciar el entorno virtual:
 ## Notas
 
 Las credenciales y el almacenamiento de la sesión son temporales y se reinician al cerrar la máquina virtual. Guardar los archivos necesarios externamente antes de finalizar la sesión.
+
+---
+
+## Licencia
+
+Este proyecto se distribuye bajo la **Licencia MIT**. Ver el archivo [LICENSE](LICENSE) para el texto completo.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+> **Aviso:** Este software se entrega "tal cual", sin garantía de ningún tipo, expresa o implícita, incluidas,
+pero no limitadas a, las garantías de comerciabilidad, idoneidad para un propósito particular y
+no infracción. En ningún caso los autores o titulares del copyright serán responsables por
+ningún reclamo, daño u otra responsabilidad, ya sea en una acción de contrato, agravio o
+cualquier otra, que surja de, fuera de o en conexión con el software o el uso u otros
+tratos en el software.
+
+Ver [NOTICE](NOTICE) para la atribución completa de componentes de terceros.
+
+---
+
+*PC-Free-T4 — Escritorio XFCE en Colab con GPU Tesla T4. Selkies 2.1, Steam, Heroic, Battly, Proton, Chrome.*
