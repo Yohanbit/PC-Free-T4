@@ -1,101 +1,102 @@
-NOTICE
+AVISO
 ======
 
-This project bundles and downloads several third-party components at runtime.
-None of these components are redistributed in this repository; they are
-fetched at runtime from their official sources and validated by SHA checksums.
+Este proyecto agrupa y descarga varios componentes de terceros en tiempo de
+ejecución. Ninguno de estos componentes se redistribuye en este repositorio;
+se descargan en tiempo de ejecución desde sus fuentes oficiales y se validan
+mediante sumas de verificación SHA.
 
 ---
 
-Selkies 2.1.0 (with pixelflux 2.2.1, pcmflux 2.2.0)
-License: MPL-2.0
-Source: https://github.com/selkies-project/selkies/releases/tag/2.1.0
-Homepage: https://github.com/selkies-project/selkies
+Selkies 2.1.0 (con pixelflux 2.2.1, pcmflux 2.2.0)
+Licencia: MPL-2.0
+Fuente: https://github.com/selkies-project/selkies/releases/tag/2.1.0
+Página: https://github.com/selkies-project/selkies
 
 ---
 
 cloudflared 2026.10.3
-License: Apache-2.0
-Source: https://github.com/cloudflare/cloudflared/releases/tag/2026.10.3
-Homepage: https://github.com/cloudflare/cloudflared
+Licencia: Apache-2.0
+Fuente: https://github.com/cloudflare/cloudflared/releases/tag/2026.10.3
+Página: https://github.com/cloudflare/cloudflared
 
 ---
 
 Chrome 156.0.8078.47-1
-License: BSD-3-Clause (Chromium), with proprietary components
-Source: https://dl.google.com/linux/chrome/
-Homepage: https://www.google.com/chrome/
+Licencia: BSD-3-Clause (Chromium), con componentes propietarios
+Fuente: https://dl.google.com/linux/chrome/
+Página: https://www.google.com/chrome/
 
 ---
 
 Proton 11.0-2
-License: BSD-3-Clause (with additional patent grant)
-Source: https://github.com/ValveSoftware/Proton/releases/tag/proton-11.0-2
-Upstream: Wine/Proton
+Licencia: BSD-3-Clause (con concesión adicional de patente)
+Fuente: https://github.com/ValveSoftware/Proton/releases/tag/proton-11.0-2
+Original: Wine/Proton
 
 ---
 
 GE-Proton11-11
-License: BSD-3-Clause (proton-ge-custom)
-Source: https://github.com/GloriousEggroll/proton-ge-custom/releases/tag/GE-Proton11-11
-Upstream: Proton/Wine
+Licencia: BSD-3-Clause (proton-ge-custom)
+Fuente: https://github.com/GloriousEggroll/proton-ge-custom/releases/tag/GE-Proton11-11
+Original: Proton/Wine
 
 GE-Proton9-27
-License: BSD-3-Clause (proton-ge-custom)
-Source: https://github.com/GloriousEggroll/proton-ge-custom/releases/tag/GE-Proton9-27
-Upstream: Proton/Wine
+Licencia: BSD-3-Clause (proton-ge-custom)
+Fuente: https://github.com/GloriousEggroll/proton-ge-custom/releases/tag/GE-Proton9-27
+Original: Proton/Wine
 
 ---
 
 DXVK 3.1
-License: zlib
-Source: https://github.com/doitsujin/dxvk/releases/tag/v3.1
-Homepage: https://github.com/doitsujin/dxvk
+Licencia: zlib
+Fuente: https://github.com/doitsujin/dxvk/releases/tag/v3.1
+Página: https://github.com/doitsujin/dxvk
 
 ---
 
 vkd3d-proton 3.0
-License: LGPL-2.1
-Source: https://github.com/HansKristian-Work/vkd3d-proton/releases/tag/v3.0.1
-Homepage: https://github.com/HansKristian-Work/vkd3d-proton
+Licencia: LGPL-2.1
+Fuente: https://github.com/HansKristian-Work/vkd3d-proton/releases/tag/v3.0.1
+Página: https://github.com/HansKristian-Work/vkd3d-proton
 
 ---
 
 Wine 9
-License: LGPL-2.1 (wine), MIT (some parts)
-Source: https://gitlab.winehq.org/wine/wine/-/tags/wine-9.0
-Homepage: https://www.winehq.org
+Licencia: LGPL-2.1 (wine), MIT (algunas partes)
+Fuente: https://gitlab.winehq.org/wine/wine/-/tags/wine-9.0
+Página: https://www.winehq.org
 
 ---
 
 Heroic Games Launcher 2.22.4
-License: GPL-3.0
-Source: https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher/releases/tag/v2.22.4
-Homepage: https://heroicgameslauncher.com/
+Licencia: GPL-3.0
+Fuente: https://github.com/HeroicGamesLauncher/HeroicGamesLauncher/releases/tag/v2.22.4
+Página: https://heroicgameslauncher.com/
 
 ---
 
 Battly Launcher 3.0.1
-License: MIT
-Source: https://github.com/BattlyLauncher/battlylauncher/releases/tag/3.0.1
-Homepage: https://battlylauncher.com/
+Licencia: MIT
+Fuente: https://github.com/BattlyLauncher/battlylauncher/releases/tag/3.0.1
+Página: https://battlylauncher.com/
 
 ---
 
-fake-udev (from Selkies 2.1.0 addons)
-License: MPL-2.0
-Source: https://github.com/selkies-project/selkies/tree/2.1.0/addons/fake-udev
-Compiled at runtime from pinned source (SHA-256: 67eaae6f175df845f8dd7fffc58911dcaa5b9f07150f129e314ca45d47405b40)
-Compiled binary placed in /tmp/pcfree-selkies/fake-udev/lib/{x86_64-linux-gnu,i386-linux-gnu}/libudev.so.1
-Binary not versioned in this repository; compiled at runtime from pinned source.
-License: MPL-2.0 (compatible with MIT)
+fake-udev (desde Selkies 2.1.0 addons)
+Licencia: MPL-2.0
+Fuente: https://github.com/selkies-project/selkies/tree/2.1.0/addons/fake-udev
+Compilado en tiempo de ejecución desde la fuente fijada (SHA-256:
+67eaae6f175df845f8dd7fffc58911dcaa5b9f07150f129e314ca45d47405b40)
+Binario compilado en /tmp y no versionado en este repositorio.
+Licencia: MPL-2.0 (compatible con MIT)
 
 ---
 
-All listed software is downloaded at runtime from its official upstream source
-and validated via SHA-256/SHA-512 checksums. Nothing is redistributed within
-this repository.
+Todo el software listado se descarga en tiempo de ejecución desde su fuente
+oficial y se valida mediante sumas de verificación SHA-256/SHA-512. Nada se
+redistribuye dentro de este repositorio.
 
-The MIT license above applies only to the code, scripts, notebook, and
-documentation authored for this project. All third-party components retain
-their respective licenses as listed above.
+La licencia MIT arriba solo se aplica al código, scripts, cuaderno y
+documentación creados para este proyecto. Todos los componentes de terceros
+conservan sus respectivas licencias como se listan arriba.
