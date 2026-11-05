@@ -38,9 +38,7 @@ Las credenciales y el almacenamiento de la sesión son temporales y se reinician
 
 ## Licencia
 
-Este proyecto se distribuye bajo la **Licencia MIT**. Ver el archivo [LICENSE](LICENSE) para el texto completo.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+Este proyecto se distribuye bajo la **Licencia MIT**.
 
 > **Aviso:** Este software se entrega "tal cual", sin garantía de ningún tipo, expresa o implícita, incluidas,
 pero no limitadas a, las garantías de comerciabilidad, idoneidad para un propósito particular y
