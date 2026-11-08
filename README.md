@@ -4,18 +4,38 @@ Escritorio Ubuntu en Google Colab con GPU NVIDIA Tesla T4, entorno gráfico XFCE
 
 ## Acceso a la VM
 
-[![Abrir en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4.ipynb)
+[![Abrir notebook actualizado en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4.ipynb)
 
 
 Pasos para iniciar el entorno virtual:
 
 1. Abrir la libreta en Google Colab mediante el enlace anterior.
 2. Configurar el entorno con GPU: **Entorno de ejecución → Cambiar tipo de entorno de ejecución → GPU T4 → Guardar**.
-3. Ejecutar en orden: **Comprobar región → Cargar núcleo interno → Preparación del escritorio → Iniciar PC-Free-T4**. Las demás celdas son opcionales.
+3. Ejecutar en orden: **Comprobar región → Drive: restaurar archivos y autoguardar cada 10 minutos → Cargar núcleo interno → Preparación del escritorio → Iniciar PC-Free-T4**. Autorizar Drive cuando lo solicite; la celda de Drive restaura el último respaldo completo si existe. Las demás celdas son opcionales.
 4. Esperar a que la celda de inicio genere la URL del túnel junto con la cuenta y la contraseña.
 5. Abrir la URL en un navegador, ingresar las credenciales presentadas y seleccionar el botón de inicio de transmisión.
 
 
+
+## Guardado y restauración en Drive
+
+La **segunda celda de código**, después de comprobar la región, reúne todo el respaldo en una sola celda con formulario `@title`. El núcleo y las demás celdas de código originales se conservan sin cambios.
+
+- **Iniciar** monta Drive, restaura el último respaldo completo cuando la VM es nueva y activa el autoguardado cada 10 minutos. No bloquea la ejecución de las demás celdas.
+- **Guardar ahora** realiza un respaldo manual. Cerrar juegos antes de guardar mejora la consistencia de sus archivos.
+- **Listar respaldos** muestra los identificadores disponibles. Para cargar uno concreto, pegarlo en `RESPALDO` y elegir **Restaurar respaldo**; dejarlo vacío selecciona el último. Detener todos los procesos de la cuenta del escritorio antes de restaurar; se recomienda una VM nueva.
+- `AUTOGUARDADO` permite activar o desactivar el guardado periódico; **Detener autoguardado** detiene el trabajador.
+- Los archivos se guardan en **Mi unidad → PC-Free-T4 → backups-v2**. Se conservan los últimos **3 respaldos completos**, configurable, con verificación SHA-256. Las copias incompletas no se ofrecen para restaurar ni sustituyen a las anteriores.
+
+Se respalda el home real de `pcfree-browser`: documentos, mundos, ajustes y prefijos Wine/Proton. Se excluyen cachés, claves SSH/GPG y, por defecto, Downloads y los archivos de juegos Steam. Activar `INCLUIR_DESCARGAS` o `INCLUIR_JUEGOS_STEAM` para incluirlos; Steam `compatdata` y `userdata` se conservan sin esas opciones. Otros launchers pueden guardar juegos grandes dentro del home.
+
+No es una imagen de la VM: no conserva paquetes APT, `/opt`, el perfil aislado de Chrome, memoria ni procesos. Tras perder el entorno, **volver a ejecutar la celda de Drive y después núcleo, preparación e inicio**. Colab puede pedir autorización de nuevo; la celda no puede ejecutarse sola tras un reinicio. Un reinicio sólo del intérprete también requiere volver a ejecutar la celda para recuperar el autoguardado.
+
+Restaurar reemplaza el home completo y deja el anterior como rescate **local**, no en Drive. Se requiere espacio local para descomprimir. Los respaldos no tienen cifrado adicional y pueden contener sesiones de aplicaciones. Una interrupción repentina puede perder los cambios posteriores al último respaldo completo. Los respaldos de formatos anteriores no se modifican ni se importan automáticamente.
+
+Drive se monta bajo una carpeta privada distinta de `/content/drive`, para mantener intactas las comprobaciones y el aislamiento del núcleo original. Si ya existe un montaje en `/content/drive`, desmontarlo antes de iniciar el escritorio.
+
+Validación: 16 pruebas locales de respaldo y restauración. La autorización de Drive y el arranque completo requieren una prueba en Colab real.
 
 ## Características
 
@@ -35,7 +55,7 @@ Pasos para iniciar el entorno virtual:
 
 ## Notas
 
-Las credenciales y el almacenamiento de la sesión son temporales y se reinician al cerrar la máquina virtual. Guardar los archivos necesarios externamente antes de finalizar la sesión.
+Las credenciales de acceso y el almacenamiento local son temporales. Sólo los respaldos completos publicados en Drive sobreviven a la pérdida de la VM; ejecutar **Guardar ahora** antes de terminar la sesión. El escritorio remoto debe utilizarse únicamente en entornos y planes que permitan este uso según las políticas de Colab.
 
 ---
 
