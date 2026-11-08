@@ -913,7 +913,7 @@ def show_access():
     resolution = settings.get('resolution', '960x540')
     encoder = settings.get('encoder', 'h264enc')
     cpu_encode = str(settings.get('use_cpu', False)).lower()
-    queue_size = settings.get('backpressure_queue_size', 90)
+    queue_size = settings.get('backpressure_queue_size', 110)
     congestion = 'activa' if settings.get('congestion_control') else 'desactivada'
     cap = settings.get('fps_cap', 60)
     print(f'{resolution} · {encoder} · use-cpu={cpu_encode} · cola={queue_size} · {fps} FPS · '          f'{kbps} kbps CBR · congestión {congestion} · cap {cap or "sin límite"} FPS; '          'NVENC se confirma en TX · Diagnóstico.')
@@ -1040,7 +1040,7 @@ def verify_pixelflux(python):
 
 
 def bootstrap(chrome=True, framerate=60, bitrate=3000, width=960, height=540,
-              backpressure_queue_size=90, congestion_control=False, fps_cap=60,
+              backpressure_queue_size=110, congestion_control=False, fps_cap=60,
               fsr=False, fsr_strength=2):
     if (
         not isinstance(framerate, int) or not 1 <= framerate <= 60

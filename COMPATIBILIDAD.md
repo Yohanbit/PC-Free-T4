@@ -28,7 +28,7 @@ Documentación: [controles Selkies 2.1](https://github.com/selkies-project/selki
 
 ## Audio
 
-El arranque escribe `~/.config/pulse/daemon.conf` (48 kHz, `s16le`, `flat-volumes=no`, `speex-float-1`, fragmentos de 40 ms), crea el sink `output` fijo a 48 kHz estéreo y lanza PulseAudio con `nice -10`. Selkies captura `output.monitor` a 96 kbps, 20 ms y RED 2, y la cola de backpressure es de 90 fragmentos.
+El arranque escribe `~/.config/pulse/daemon.conf` (48 kHz, `s16le`, `flat-volumes=no`, `speex-float-1`, fragmentos de 40 ms), crea el sink `output` fijo a 48 kHz estéreo y lanza PulseAudio con `nice -10`. Selkies captura `output.monitor` a 96 kbps, 20 ms y RED 2, y la cola de backpressure es de 110 fragmentos.
 
 Estos ajustes se aplican al iniciar; no hay una celda separada para audio. Una sesión anterior al cambio debe reiniciarse. No se ha medido todavía en todos los clientes ni con todas las cargas de audio. Si el corte aparece solo en un cliente, bajar el volumen del navegador o desactivar el audio en la barra lateral para distinguir el decodificador local del servidor.
 
@@ -81,7 +81,7 @@ Si Heroic ya estaba abierto, cerrarlo y volver a abrirlo. En Ajustes > Wine debe
 - Proton 11.0-2 se gestiona desde Steam; GE-Proton11-11 se descarga bajo demanda desde la celda correspondiente, con SHA-512, y no al iniciar.
 - La celda de pruebas Proton comprueba OpenGL y Vulkan de 32/64 bits y crea prefijos Proton de 64 y 32 bits. No usa Wine suelto ni perfiles por juego.
 - DXVK y VKD3D-Proton son parte del runtime de Proton/GE; no se instalan sueltos.
-- La resolución de Selkies es automática desde 960×540 inicial; la cola es de 90 fragmentos.
+- La resolución de Selkies es automática desde 960×540 inicial; la cola es de 110 fragmentos.
 - Límite de render con `FPS_CAP`: `dxvk.maxFrameRate`, `d3d9.maxFrameRate` y `dxgi.maxFrameRate` en `dxvk.conf`, más `VKD3D_FRAME_RATE` para D3D12. `0` lo desactiva. Reduce CPU y GPU cuando el juego supera el FPS de transmisión.
 - FSR: `WINE_FULLSCREEN_FSR=1` y `WINE_FULLSCREEN_FSR_STRENGTH` (0–5) escalan D3D11/12 por GPU. Es FSR 1.0; FSR 2/3 son temporales y requieren soporte del juego o un mod.
 - Nitidez y stutter: `dxvk.enableGraphicsPipelineLibrary=Auto` y `dxvk.numCompilerThreads=1`; `VKD3D_CONFIG=pipeline_library_app_cache` con caché propia. Sustituyen al parche async, retirado de DXVK 2.0.

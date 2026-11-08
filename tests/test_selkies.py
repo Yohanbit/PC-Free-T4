@@ -29,6 +29,17 @@ def find_cell(document, needle):
     raise AssertionError(f'No se encontró la celda: {needle}')
 
 
+def kernel_sources(document):
+    """SOURCES del núcleo por título y con el árbol de sintaxis: no se ejecuta."""
+    _, cell = find_cell(document, 'Cargar núcleo interno')
+    for node in ast.parse(''.join(cell['source'])).body:
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == 'SOURCES'):
+            return ast.literal_eval(node.value)
+    raise AssertionError('La celda del núcleo no define SOURCES como literal.')
+
+
 class SelkiesTests(unittest.TestCase):
     def test_import_and_embedded_syntax(self):
         for path in (ROOT / 'scripts').glob('*.py'):
@@ -45,10 +56,7 @@ class SelkiesTests(unittest.TestCase):
 
     def test_notebook_sources_embedded(self):
         document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
-        cell2_code = ''.join(document['cells'][2]['source'])
-        env = {}
-        exec(compile(cell2_code, 'cell2', 'exec'), env)
-        sources = env.get('SOURCES', {})
+        sources = kernel_sources(document)
         self.assertIn('selkies-desktop.py', sources)
         for name, source in sources.items():
             path = ROOT / 'scripts' / name
@@ -250,9 +258,9 @@ class SelkiesTests(unittest.TestCase):
         for invalid in ("AUDIO_FRAME_DURATION_MS='20|locked'", "AUDIO_BITRATE='96000|locked'",
                         "AUDIO_CHANNELS='2-2'", "AUDIO_REDUNDANCY_DISTANCE='2-2'"):
             self.assertNotIn(invalid, core_source)
-        # One queued chunk drops audio on the first hiccup; 90 bounds latency while absorbing bursts.
+        # Un solo fragmento pierde audio al primer hipo; 110 absorbe picos de NVENC.
         self.assertEqual(inspect.signature(CORE.bootstrap)
-                         .parameters['backpressure_queue_size'].default, 90)
+                         .parameters['backpressure_queue_size'].default, 110)
         with self.assertRaisesRegex(ValueError, 'cola: 1–100000'):
             CORE.bootstrap(backpressure_queue_size=100001)
 
@@ -323,7 +331,7 @@ class SelkiesTests(unittest.TestCase):
         self.assertIn('max(width, 1920)', source)
         document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
         _, start = find_cell(document, '# @title Iniciar PC-Free-T4')
-        self.assertIn('BACKPRESSURE_QUEUE_SIZE = 90', ''.join(start['source']))
+        self.assertIn('BACKPRESSURE_QUEUE_SIZE = 110', ''.join(start['source']))
         self.assertIn('FPS_CAP = 60', ''.join(start['source']))
 
     def test_game_environment_cell_is_real_and_clean(self):
@@ -505,8 +513,13 @@ class SelkiesTests(unittest.TestCase):
 
     def test_deb_helper_resolves_dependencies(self):
         document = json.loads((ROOT / 'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
-        source = ''.join(document['cells'][3]['source'])
-        helper = re.search(r'helper\.write_text\("""(#!/usr/bin/python3\.12.*?)"""\)', source, re.S)
+        # Se busca por contenido: los índices de celda se desplazan al editarlas.
+        helper = None
+        for cell in document['cells']:
+            helper = re.search(r'helper\.write_text\("""(#!/usr/bin/python3\.12.*?)"""\)',
+                               ''.join(cell['source']), re.S)
+            if helper:
+                break
         self.assertIsNotNone(helper)
         body = helper.group(1)
         ast.parse(body)

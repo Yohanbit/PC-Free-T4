@@ -4,7 +4,7 @@ Escritorio Ubuntu en Google Colab con GPU NVIDIA Tesla T4, entorno gráfico XFCE
 
 ## Acceso a la VM
 
-[![Abrir notebook actualizado en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/43d57936af1e6dcec89c54ee4cd3a7fb0430fb10/PC-Free-T4.ipynb)
+[![Abrir notebook actualizado en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4.ipynb)
 
 
 Pasos para iniciar el entorno virtual:
@@ -38,7 +38,7 @@ Drive se monta bajo una carpeta privada distinta de `/content/drive`, para mante
 
 - Entorno de escritorio XFCE en Ubuntu con aceleración por hardware GPU Tesla T4.
 - Transmisión de baja latencia con Selkies (NVENC H.264, WebSockets y túnel Cloudflare HTTP/2).
-- Audio estable a 48 kHz con ganancias independientes y 90 fragmentos de cola, para evitar cortes con volumen medio/alto.
+- Audio estable a 48 kHz con ganancias independientes y 110 fragmentos de cola, para evitar cortes con volumen medio/alto.
 - Decodificación WebCodecs en el navegador y captura NvFBC zero-copy cuando el driver la permite, con DRI3/XShm como respaldo.
 - Resolución automática de Selkies desde 960×540 inicial, con navegador Chrome 156 y perfil aislado.
 - Tasa de cuadros y calidad de video configurables para transmisión fluida.
