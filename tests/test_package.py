@@ -13,10 +13,20 @@ for path in root.glob('*.ipynb'):
             assert cell['outputs']==[] and cell['execution_count'] is None
             ast.parse(''.join(cell['source']))
 desktop=json.loads((root/'PC-Free-T4.ipynb').read_text(encoding='utf-8'))
-cell2_code=''.join(desktop['cells'][2]['source'])
-ns={}
-exec(compile(cell2_code,'cell2','exec'),ns)
-embedded=ns.get('SOURCES',{})
+def kernel_sources(document):
+    # Por título y con el árbol de sintaxis: nunca se ejecuta la celda.
+    for cell in document['cells']:
+        source=''.join(cell['source'])
+        if 'Cargar núcleo interno' not in source:
+            continue
+        for node in ast.parse(source).body:
+            if (isinstance(node,ast.Assign) and len(node.targets)==1
+                    and isinstance(node.targets[0],ast.Name)
+                    and node.targets[0].id=='SOURCES'):
+                return ast.literal_eval(node.value)
+        raise AssertionError('La celda del núcleo no define SOURCES como literal.')
+    raise AssertionError('No se encontró la celda del núcleo.')
+embedded=kernel_sources(desktop)
 for name,source in embedded.items():
     assert source==(root/'scripts'/name).read_text(encoding='utf-8'), 'Cuaderno desactualizado: '+name
 assert 'selkies-desktop.py' in embedded and 'compat-steam.py' in embedded and 'compat-apps.py' in embedded
