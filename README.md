@@ -4,7 +4,7 @@ Escritorio Ubuntu en Google Colab con GPU NVIDIA Tesla T4, entorno gráfico XFCE
 
 ## Acceso a la VM
 
-[![Abrir notebook actualizado en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/main/PC-Free-T4.ipynb)
+[![Abrir notebook actualizado en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Yohanbit/PC-Free-T4/blob/70e3269fd12493b2b3f98039d55699c559f7926a/PC-Free-T4.ipynb)
 
 
 Pasos para iniciar el entorno virtual:
